@@ -1,6 +1,5 @@
 # CARLA Autonomous Driving System
-## India-Mode Autonomy Stack (Phase 3 - Full Autonomous Navigation)
-
+## India-Mode Autonomy Stack 
 **Version**: 16.7  
 **Created**: 2026  
 **Last Updated**: January 26, 2026
