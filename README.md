@@ -65,11 +65,11 @@ The system follows a **hierarchical autonomy architecture**:
                             ↕
 ┌────────────────────────────────────────────────────────────┐
 │                    PLANNING LAYER                          │
-│  ┌──────────────────┐      ┌─────────────────────┐        │
-│  │ Behavior Planner │──────│  Motion Planner     │        │
-│  │  (High-level     │      │  (Trajectory        │        │
-│  │   Decisions)     │      │   Generation)       │        │
-│  └──────────────────┘      └─────────────────────┘        │
+│  ┌──────────────────┐      ┌─────────────────────┐         │
+│  │ Behavior Planner │──────│  Motion Planner     │         │
+│  │  (High-level     │      │  (Trajectory        │         │
+│  │   Decisions)     │      │   Generation)       │         │
+│  └──────────────────┘      └─────────────────────┘         │
 │  • State Machine Logic     • Path Smoothing                │
 │  • Overtaking Strategy     • Route Following               │
 │  • Speed Regulation        • Lane-change Trajectories      │
@@ -77,18 +77,18 @@ The system follows a **hierarchical autonomy architecture**:
                             ↕
 ┌────────────────────────────────────────────────────────────┐
 │                    CONTROL LAYER                           │
-│  ┌──────────────────┐      ┌─────────────────────┐        │
-│  │  PID Longitudinal│      │  Pure Pursuit       │        │
-│  │  Controller      │      │  Lateral Controller │        │
-│  └──────────────────┘      └─────────────────────┘        │
-│  • Throttle/Brake Commands  • Steering Commands           │
+│  ┌──────────────────┐      ┌─────────────────────┐         │
+│  │  PID Longitudinal│      │  Pure Pursuit       │         │
+│  │  Controller      │      │  Lateral Controller │         │
+│  └──────────────────┘      └─────────────────────┘         │
+│  • Throttle/Brake Commands  • Steering Commands            │
 └────────────────────────────────────────────────────────────┘
                             ↕
 ┌────────────────────────────────────────────────────────────┐
 │                 VISUALIZATION LAYER                        │
-│  • Pygame Real-time Display                               │
-│  • Bird's Eye View Sensors                                │
-│  • Camera Feed + Metrics                                  │
+│  • Pygame Real-time Display                                │
+│  • Bird's Eye View Sensors                                 │
+│  • Camera Feed + Metrics                                   │
 └────────────────────────────────────────────────────────────┘
 ```
 
@@ -289,15 +289,15 @@ def get_visual_right_lane(wp):
 
 **State Machine States**:
 ```python
-CRUISE = 1           # Normal driving at target speed
-FOLLOW = 2           # Car-following with gap control
-PREPARE_OVERTAKE = 3 # Lane change validation phase
-CHASE = 4            # Unused (legacy)
-EMERGENCY_STOP = 5   # TTC-based hard braking
-CHANGE_LANE_LEFT = 6 # Active left lane change
-CHANGE_LANE_RIGHT = 7# Active right lane change
-OVERTAKE = 8         # Stabilization after lane change
-STOP_FOR_TL = 9      # Red/Yellow traffic light stop
+CRUISE = 1            # Normal driving at target speed
+FOLLOW = 2            # Car-following with gap control
+PREPARE_OVERTAKE = 3  # Lane change validation phase
+CHASE = 4             # Unused (legacy)
+EMERGENCY_STOP = 5    # TTC-based hard braking
+CHANGE_LANE_LEFT = 6  # Active left lane change
+CHANGE_LANE_RIGHT = 7 # Active right lane change
+OVERTAKE = 8          # Stabilization after lane change
+STOP_FOR_TL = 9       # Red/Yellow traffic light stop
 ```
 
 #### Class 2: BehaviorPlanner
@@ -330,53 +330,53 @@ global_route: List[Waypoint] # A-to-B navigation path
                           ↓
 ┌─────────────────────────────────────────────────────────┐
 │ 2. RECOVERY LOGIC                                       │
-│    IF state == EMERGENCY_STOP or STOP_FOR_TL:          │
+│    IF state == EMERGENCY_STOP or STOP_FOR_TL:           │
 │      IF obstacle cleared:                               │
 │        → CRUISE or FOLLOW                               │
 └─────────────────────────────────────────────────────────┘
                           ↓
 ┌─────────────────────────────────────────────────────────┐
 │ 3. TRAFFIC LIGHT PRIORITY                               │
-│    IF at_traffic_light AND (Red or Yellow):            │
-│      → STOP_FOR_TL (target_speed = 0)                  │
-│    IF Green AND state == STOP_FOR_TL:                  │
+│    IF at_traffic_light AND (Red or Yellow):             │
+│      → STOP_FOR_TL (target_speed = 0)                   │
+│    IF Green AND state == STOP_FOR_TL:                   │
 │      → CRUISE                                           │
 └─────────────────────────────────────────────────────────┘
                           ↓
 ┌─────────────────────────────────────────────────────────┐
 │ 4. EMERGENCY SAFETY                                     │
-│    IF TTC < EMERGENCY_BRAKE_TTC (1.5s):                │
-│      → EMERGENCY_STOP (unless passing victim)          │
+│    IF TTC < EMERGENCY_BRAKE_TTC (1.5s):                 │
+│      → EMERGENCY_STOP (unless passing victim)           │
 └─────────────────────────────────────────────────────────┘
                           ↓
 ┌─────────────────────────────────────────────────────────┐
 │ 5. STATE MACHINE TRANSITIONS                            │
-│                                                          │
+│                                                         │
 │ ┌──────────────┐                                        │
 │ │   CRUISE     │                                        │
 │ └──────┬───────┘                                        │
 │        │ obs_dist < SAFE_FOLLOW_DISTANCE                │
-│        ↓                                                 │
+│        ↓                                                │
 │ ┌──────────────┐                                        │
 │ │   FOLLOW     │                                        │
 │ └──────┬───────┘                                        │
 │        │ speed < 80% target AND lane_free               │
-│        ↓                                                 │
+│        ↓                                                │
 │ ┌──────────────────┐                                    │
 │ │ PREPARE_OVERTAKE │                                    │
 │ └──────┬───────────┘                                    │
 │        │ gap validated                                  │
-│        ↓                                                 │
+│        ↓                                                │
 │ ┌──────────────────────┐                                │
 │ │ CHANGE_LANE_L/R      │                                │
 │ └──────┬───────────────┘                                │
 │        │ lane_id matches target                         │
-│        ↓                                                 │
+│        ↓                                                │
 │ ┌──────────────┐                                        │
 │ │  OVERTAKE    │                                        │
 │ └──────┬───────┘                                        │
 │        │ victim 30m behind                              │
-│        ↓                                                 │
+│        ↓                                                │
 │ ┌──────────────┐                                        │
 │ │   CRUISE     │ (cycle complete)                       │
 │ └──────────────┘                                        │
@@ -384,9 +384,9 @@ global_route: List[Waypoint] # A-to-B navigation path
                           ↓
 ┌─────────────────────────────────────────────────────────┐
 │ 6. TARGET SPEED CALCULATION                             │
-│    FOLLOW: lead_speed + gap_correction (P-control)     │
-│    OVERTAKE: 1.2 × target_speed (assertive)            │
-│    CRUISE: target_speed (30 km/h default)              │
+│    FOLLOW: lead_speed + gap_correction (P-control)      │
+│    OVERTAKE: 1.2 × target_speed (assertive)             │
+│    CRUISE: target_speed (30 km/h default)               │
 └─────────────────────────────────────────────────────────┘
                           ↓
 ┌─────────────────────────────────────────────────────────┐
@@ -684,106 +684,106 @@ Unique Lane IDs found: {-1, -2, -3, 1, 2, 3}
                            ↓
 ┌──────────────────────────────────────────────────────────────┐
 │ 2. SENSOR DATA ACQUISITION (carla_interface.get_data())      │
-│                                                               │
+│                                                              │
 │    Sensors → Queues (async callbacks):                       │
-│      • LiDAR: 200k points/sec → point cloud buffer          │
-│      • Radar: Detections → (azimuth, altitude, depth, vel)  │
-│      • Cameras: 640×480 BGRA images (front/rear/TPS)        │
-│      • GNSS: GPS coordinates (lat, lon, alt)                │
-│      • IMU: Accelerometer + Gyroscope readings              │
-│                                                               │
+│      • LiDAR: 200k points/sec → point cloud buffer           │
+│      • Radar: Detections → (azimuth, altitude, depth, vel)   │
+│      • Cameras: 640×480 BGRA images (front/rear/TPS)         │
+│      • GNSS: GPS coordinates (lat, lon, alt)                 │
+│      • IMU: Accelerometer + Gyroscope readings               │
+│                                                              │
 │    Ground Truth (synchronous):                               │
-│      • ego_transform: Vehicle pose (x, y, z, yaw, pitch)    │
-│      • ego_velocity: Linear velocity vector                 │
-│      • nearby_vehicles: All vehicles within 100m            │
+│      • ego_transform: Vehicle pose (x, y, z, yaw, pitch)     │
+│      • ego_velocity: Linear velocity vector                  │
+│      • nearby_vehicles: All vehicles within 100m             │
 └──────────────────────────────────────────────────────────────┘
                            ↓
 ┌──────────────────────────────────────────────────────────────┐
 │ 3. VISUALIZATION UPDATE (visualization.render())             │
-│    • Parse LiDAR point cloud (numpy buffer)                 │
-│    • Project radar detections to BEV                        │
-│    • Convert camera BGRA → RGB                              │
-│    • Render pygame display at 60 FPS                        │
+│    • Parse LiDAR point cloud (numpy buffer)                  │
+│    • Project radar detections to BEV                         │
+│    • Convert camera BGRA → RGB                               │
+│    • Render pygame display at 60 FPS                         │
 └──────────────────────────────────────────────────────────────┘
                            ↓
 ┌──────────────────────────────────────────────────────────────┐
 │ 4. BEHAVIOR PLANNING (planner.BehaviorPlanner.plan())        │
-│                                                               │
+│                                                              │
 │    Input:                                                    │
-│      • ego_transform, ego_speed                             │
-│      • nearby_vehicles (ground truth)                       │
-│                                                               │
+│      • ego_transform, ego_speed                              │
+│      • nearby_vehicles (ground truth)                        │
+│                                                              │
 │    Processing:                                               │
-│      1. Find lead vehicle (route-aware + lane filtering)    │
-│      2. Compute TTC (time-to-collision)                     │
-│      3. Check traffic light state                           │
-│      4. FSM logic (9 states)                                │
-│      5. Overtaking validation (lane-free check)             │
-│      6. Target speed calculation                            │
-│                                                               │
+│      1. Find lead vehicle (route-aware + lane filtering)     │
+│      2. Compute TTC (time-to-collision)                      │
+│      3. Check traffic light state                            │
+│      4. FSM logic (9 states)                                 │
+│      5. Overtaking validation (lane-free check)              │
+│      6. Target speed calculation                             │
+│                                                              │
 │    Output:                                                   │
-│      • state: BehaviorState (enum)                          │
-│      • target_speed: float (m/s)                            │
-│      • target_lane_wp: Waypoint (for lane changes)          │
+│      • state: BehaviorState (enum)                           │
+│      • target_speed: float (m/s)                             │
+│      • target_lane_wp: Waypoint (for lane changes)           │
 └──────────────────────────────────────────────────────────────┘
                            ↓
 ┌──────────────────────────────────────────────────────────────┐
-│ 5. MOTION PLANNING (planner.MotionPlanner.generate_path())  │
-│                                                               │
+│ 5. MOTION PLANNING (planner.MotionPlanner.generate_path())   │
+│                                                              │
 │    Input:                                                    │
-│      • ego_transform                                        │
-│      • behavior_state                                       │
-│      • target_lane_wp (if changing lanes)                   │
-│      • global_route                                         │
-│                                                               │
+│      • ego_transform                                         │
+│      • behavior_state                                        │
+│      • target_lane_wp (if changing lanes)                    │
+│      • global_route                                          │
+│                                                              │
 │    Processing:                                               │
-│      1. Find current position on global_route               │
-│      2. Project 50m ahead along route                       │
-│      3. Apply lateral shift for lane changes                │
-│      4. Generate waypoint sequence                          │
-│                                                               │
+│      1. Find current position on global_route                │
+│      2. Project 50m ahead along route                        │
+│      3. Apply lateral shift for lane changes                 │
+│      4. Generate waypoint sequence                           │
+│                                                              │
 │    Output:                                                   │
-│      • waypoints: List[carla.Transform] (path to follow)    │
+│      • waypoints: List[carla.Transform] (path to follow)     │
 └──────────────────────────────────────────────────────────────┘
                            ↓
 ┌──────────────────────────────────────────────────────────────┐
 │ 6. CONTROL (controller.VehicleController.run_step())         │
-│                                                               │
+│                                                              │
 │    A. LONGITUDINAL CONTROL (PID):                            │
-│       error = target_speed - current_speed                  │
-│       acceleration = PID(error)                             │
-│       IF acceleration ≥ 0:                                  │
-│         throttle = acceleration, brake = 0                  │
-│       ELSE:                                                 │
-│         throttle = 0, brake = abs(acceleration)             │
-│                                                               │
+│       error = target_speed - current_speed                   │
+│       acceleration = PID(error)                              │
+│       IF acceleration ≥ 0:                                   │
+│         throttle = acceleration, brake = 0                   │
+│       ELSE:                                                  │
+│         throttle = 0, brake = abs(acceleration)              │
+│                                                              │
 │    B. LATERAL CONTROL (Pure Pursuit):                        │
-│       target_point = waypoints[lookahead_distance]          │
-│       alpha = heading_error(ego → target)                   │
-│       steer = atan(2L × sin(alpha) / lookahead)            │
-│                                                               │
+│       target_point = waypoints[lookahead_distance]           │
+│       alpha = heading_error(ego → target)                    │
+│       steer = atan(2L × sin(alpha) / lookahead)              │
+│                                                              │
 │    Output:                                                   │
-│      • {'throttle': float, 'brake': float, 'steer': float}  │
+│      • {'throttle': float, 'brake': float, 'steer': float}   │
 └──────────────────────────────────────────────────────────────┘
                            ↓
 ┌──────────────────────────────────────────────────────────────┐
 │ 7. ACTUATION (carla_interface.apply_control())               │
-│    • Create VehicleControl object                           │
-│    • Apply to ego vehicle                                   │
-│    • Commands take effect on next physics tick              │
+│    • Create VehicleControl object                            │
+│    • Apply to ego vehicle                                    │ 
+│    • Commands take effect on next physics tick               │
 └──────────────────────────────────────────────────────────────┘
                            ↓
 ┌──────────────────────────────────────────────────────────────┐
 │ 8. SPECTATOR UPDATE                                          │
-│    • Third-person camera follows ego (-5.5m, +2.8m)         │
-│    • Smooth tracking without nausea-inducing rotation       │
+│    • Third-person camera follows ego (-5.5m, +2.8m)          │
+│    • Smooth tracking without nausea-inducing rotation        │
 └──────────────────────────────────────────────────────────────┘
                            ↓
 ┌──────────────────────────────────────────────────────────────┐
 │ 9. PERIODIC TASKS (Frame-based triggers)                     │
-│    • Frame % 20 == 0: Debug print (state, speed, distance)  │
-│    • Frame % 1200 == 0: Respawn lead vehicle (stress test)  │
-│    • Distance to goal < 5m: Generate new random destination │
+│    • Frame % 20 == 0: Debug print (state, speed, distance)   │
+│    • Frame % 1200 == 0: Respawn lead vehicle (stress test)   │
+│    • Distance to goal < 5m: Generate new random destination  │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -1295,14 +1295,6 @@ This is a research/educational project. Contributions welcome:
 
 **MIT License** (if open-source) or **Proprietary** (if private research).
 
----
-
-## 👨‍💻 Author
-
-**Project**: CARLA Autonomous Driving System  
-**Focus**: India Traffic Conditions  
-**Contact**: [Add email/GitHub if sharing]  
-**Last Updated**: January 26, 2026
 
 ---
 
