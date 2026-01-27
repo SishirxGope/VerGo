@@ -1139,10 +1139,6 @@ PURE_PURSUIT_LOOKAHEAD = 6.0  # meters (↑ for smoother, ↓ for tighter turns)
 - ✅ Infinite re-routing
 
 ### Planned (🚧)
-
-- 🚧 LiDAR-based obstacle detection (currently using ground truth)
-- 🚧 Radar-based velocity estimation
-- 🚧 Camera-based lane detection
 - 🚧 Pedestrian detection and avoidance
 - 🚧 Bicycle/motorcycle handling
 - 🚧 Roundabout navigation
