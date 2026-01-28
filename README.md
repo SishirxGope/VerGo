@@ -868,8 +868,11 @@ c:\ver.go 16.7\carla_autonomy\
 ├── test_weather.py          # Adverse weather test
 ├── visualize_sensors.py     # Sensor debug mode
 ├── debug_topology.py        # Map analysis utility
-├── README.md                # This file
-└── __pycache__/             # Python bytecode (auto-generated)
+├── NOTICE
+├── LICENSE
+└── README.md
+
+
 ```
 
 ---
