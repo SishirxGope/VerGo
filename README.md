@@ -66,11 +66,11 @@ The system follows a **hierarchical autonomy architecture**:
                             ↕
 ┌────────────────────────────────────────────────────────────┐
 │                    PLANNING LAYER                          │
-│  ┌──────────────────┐      ┌─────────────────────┐        │
-│  │ Behavior Planner │──────│  Motion Planner     │        │
-│  │  (High-level     │      │  (Trajectory        │        │
-│  │   Decisions)     │      │   Generation)       │        │
-│  └──────────────────┘      └─────────────────────┘        │
+│  ┌──────────────────┐      ┌─────────────────────┐         │
+│  │ Behavior Planner │──────│  Motion Planner     │         │
+│  │  (High-level     │      │  (Trajectory        │         │
+│  │   Decisions)     │      │   Generation)       │         │
+│  └──────────────────┘      └─────────────────────┘         │
 │  • State Machine Logic     • Path Smoothing                │
 │  • Overtaking Strategy     • Route Following               │
 │  • Speed Regulation        • Lane-change Trajectories      │
@@ -78,18 +78,18 @@ The system follows a **hierarchical autonomy architecture**:
                             ↕
 ┌────────────────────────────────────────────────────────────┐
 │                    CONTROL LAYER                           │
-│  ┌──────────────────┐      ┌─────────────────────┐        │
-│  │  PID Longitudinal│      │  Pure Pursuit       │        │
-│  │  Controller      │      │  Lateral Controller │        │
-│  └──────────────────┘      └─────────────────────┘        │
-│  • Throttle/Brake Commands  • Steering Commands           │
+│  ┌──────────────────┐      ┌─────────────────────┐         │
+│  │  PID Longitudinal│      │  Pure Pursuit       │         │
+│  │  Controller      │      │  Lateral Controller │         │
+│  └──────────────────┘      └─────────────────────┘         │
+│  • Throttle/Brake Commands  • Steering Commands            │
 └────────────────────────────────────────────────────────────┘
                             ↕
 ┌────────────────────────────────────────────────────────────┐
 │                 VISUALIZATION LAYER                        │
-│  • Pygame Real-time Display                               │
-│  • Bird's Eye View Sensors                                │
-│  • Camera Feed + Metrics                                  │
+│  • Pygame Real-time Display                                │
+│  • Bird's Eye View Sensors                                 │
+│  • Camera Feed + Metrics                                   │
 └────────────────────────────────────────────────────────────┘
 ```
 
@@ -1346,4 +1346,3 @@ This is a research/educational project. Contributions welcome:
 
 **End of README**
 
-For questions or issues, refer to the [Troubleshooting](#common-issues--fixes) section or contact the development team.
