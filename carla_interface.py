@@ -5,6 +5,7 @@ import random
 import math
 import config
 import heapq
+from perception import PerceptionModule
 
 # Custom A* Global Router to avoid dependency issues
 
@@ -117,6 +118,7 @@ class CarlaInterface:
         self.sensors = {}
         self.sensor_queues = {}
         self.data_queue = queue.Queue()
+        self.perception = PerceptionModule()
 
     def connect(self):
         """Connects to the CARLA server."""
@@ -152,10 +154,33 @@ class CarlaInterface:
         self.world.apply_settings(settings)
 
         # Setup Traffic Manager
-        self.tm = self.client.get_trafficmanager(8005)
+        # Port must be unique per TM instance if multiple scripts run.
+        # We try 8000 (standard) or random if collision.
+        import random
+        tm_port = 8000 + random.randint(10, 2000)
+        self.tm = self.client.get_trafficmanager(tm_port)
         self.tm.set_synchronous_mode(True)
         self.tm.set_random_device_seed(0)
         print("World settings applied (Sync Mode).")
+        
+        # Apply Weather
+        if config.WEATHER_PRESET == 'HeavyRain':
+            weather = carla.WeatherParameters(
+                cloudiness=100.0,
+                precipitation=100.0,
+                sun_altitude_angle=10.0,
+                fog_density=50.0,
+                fog_distance=10.0,
+                wetness=100.0
+            ) 
+            self.world.set_weather(weather)
+            print("Weather set to: Heavy Rain (Reduced Visibility)")
+        elif config.WEATHER_PRESET == 'Storm':
+             self.world.set_weather(carla.WeatherParameters.HardRainNoon)
+             print("Weather set to: Storm")
+        else:
+             self.world.set_weather(carla.WeatherParameters.ClearNoon)
+             print("Weather set to: Clear Noon")
 
     def spawn_ego_vehicle(self, spawn_point_index=0):
         """Spawns the ego vehicle at a specified spawn point, preferring outer (left) lanes."""
@@ -272,20 +297,50 @@ class CarlaInterface:
         data['ego_velocity'] = self.ego_vehicle.get_velocity()
         data['ego_accel'] = self.ego_vehicle.get_acceleration()
         
-        # Get Nearby Vehicles (Ground Truth Perception Phase 1)
-        # Scan within 100m
-        actors = self.world.get_actors().filter('vehicle.*')
-        nearby = []
-        ego_loc = data['ego_transform'].location
-        for actor in actors:
-            if actor.id != self.ego_vehicle.id:
-                loc = actor.get_location()
-                dist = loc.distance(ego_loc)
-                if dist < 100.0:
-                    nearby.append(actor)
-        data['nearby_vehicles'] = nearby
+        data['ego_accel'] = self.ego_vehicle.get_acceleration()
         
-        data['nearby_vehicles'] = nearby
+        # Perception: Process Sensors -> Detected Objects
+        if data.get('lidar') is not None:
+             detected_objects = self.perception.process(
+                 data['lidar'], 
+                 data.get('radar'), 
+                 data['ego_transform']
+             )
+             
+             # Patch Absolute Velocity
+             # Radar gives relative velocity (closing speed).
+             # V_target = V_ego + V_relative_vector
+             # But Radar gives scalar relative velocity along ray.
+             # Approximation:
+             # V_target_approx = V_ego + (Relative_Vel * Forward_Vector)
+             # This assumes objects are moving roughly parallel.
+             
+             ego_v_vec = data['ego_velocity']
+             ego_speed = math.sqrt(ego_v_vec.x**2 + ego_v_vec.y**2)
+             fwd = data['ego_transform'].get_forward_vector()
+             
+             for obj in detected_objects:
+                 # If we have a relative velocity (from Radar)
+                 if obj.velocity != 0.0: # If using scalar holder
+                      rel_speed = obj.relative_velocity # We stored it here
+                      # Construct vector (Alignment assumption)
+                      # If rel_speed is negative (closing), it reduces our speed.
+                      
+                      # Vector Math:
+                      # If we are following, V_rel is negative. V_target < V_ego.
+                      # obj.velocity = fwd * (ego_speed + rel_speed)
+                      
+                      abs_speed = ego_speed + rel_speed
+                      obj.velocity = carla.Vector3D(
+                          fwd.x * abs_speed,
+                          fwd.y * abs_speed,
+                          fwd.z * abs_speed
+                      )
+                      
+             data['nearby_vehicles'] = detected_objects
+        else:
+             data['nearby_vehicles'] = []
+        
         
         # Spectator Follow (TPS View)
         spectator = self.world.get_spectator()

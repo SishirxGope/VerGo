@@ -21,6 +21,12 @@ LEFT_LANE_DRIVING = True  # True = India/UK/Japan, False = US/EU
 OVERTAKE_ON_RIGHT = True  # Opposite of driving side
 
 # ==============================================================================
+# -- Weather Configuration -----------------------------------------------------
+# ==============================================================================
+# Presets: 'ClearNoon', 'HeavyRain', 'Storm'
+WEATHER_PRESET = 'HeavyRain' 
+
+# ==============================================================================
 # -- Vehicle Configuration -----------------------------------------------------
 # ==============================================================================
 VEHICLE_MODEL = 'vehicle.tesla.model3'
@@ -36,7 +42,13 @@ SENSORS = {
         'upper_fov': 10.0,
         'lower_fov': -30.0,
         'points_per_second': 200000,
-        'rotation_frequency': 20
+        'rotation_frequency': 20,
+        # Bad Weather Simulation (Noise)
+        'atmosphere_attenuation_rate': 0.04, # Fog/Rain attenuation
+        'dropoff_general_rate': 0.45,
+        'dropoff_intensity_limit': 0.8,
+        'dropoff_zero_intensity': 0.4,
+        'noise_stddev': 0.02 # 2cm jitter
     },
     'camera_front': {
         'type': 'sensor.camera.rgb',
