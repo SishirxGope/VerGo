@@ -4,8 +4,10 @@ import random
 import carla
 import config
 from carla_interface import CarlaInterface
-from planner import BehaviorPlanner, MotionPlanner
+from planner import BehaviorPlanner, MotionPlanner, LocalGridPlanner
 from controller import VehicleController
+from perception import CameraPerceptionModule, PerceptionModule
+from learning import ImitationLearner
 
 from visualization import SensorVisualizer
 
@@ -69,9 +71,19 @@ def main():
         # 3. Setup Modules
         behavior_planner = BehaviorPlanner(interface) # Pass full interface
         behavior_planner.global_route = route
-        
+
         motion_planner = MotionPlanner(interface.map)
         controller = VehicleController()
+
+        # RAIL Integration: Camera Perception
+        camera_perception = CameraPerceptionModule() if config.CAMERA_PERCEPTION_ENABLED else None
+        perception = PerceptionModule()
+
+        # RAIL Integration: Local Grid Planner
+        local_grid_planner = LocalGridPlanner() if config.LOCAL_GRID_ENABLED else None
+
+        # RAIL Integration: Imitation Learning
+        learner = ImitationLearner() if (config.LEARNING_ENABLED or config.LEARNING_COLLECT_DATA) else None
         
         # 4. Main Loop
         print("Starting Simulation Loop...")
@@ -97,31 +109,63 @@ def main():
                      print("DESTINATION REACHED!")
                      break
             
-            # B. Planning
+            # B. RAIL: Camera Perception Fusion
+            nearby = data['nearby_vehicles']
+            if camera_perception and 'camera_front' in data and data['camera_front'] is not None:
+                try:
+                    cam_detections = camera_perception.process(data['camera_front'], ego_transform)
+                    if cam_detections:
+                        nearby = perception.fuse_camera_detections(nearby, cam_detections)
+                except Exception:
+                    pass  # Camera perception failure should not stop driving
+
+            # C. Planning
             # 1. Behavior (Decision)
             state, target_speed = behavior_planner.plan(
-                ego_transform, 
-                ego_speed, 
-                data['nearby_vehicles']
+                ego_transform,
+                ego_speed,
+                nearby
             )
-            
+
             # 2. Motion (Trajectory)
             waypoints = motion_planner.generate_path(
-                ego_transform, 
-                state, 
+                ego_transform,
+                state,
                 behavior_planner.target_lane_wp,
                 global_route=behavior_planner.global_route
             )
-            
-            # C. Control
+
+            # 3. RAIL: Local Grid Avoidance Override
+            if local_grid_planner and nearby:
+                try:
+                    local_path = local_grid_planner.plan_local_path(ego_transform, nearby)
+                    if local_path and waypoints:
+                        # Blend: use local avoidance path for near-field, global for far-field
+                        waypoints = local_path + waypoints[len(local_path):]
+                except Exception:
+                    pass  # Grid planner failure should not stop driving
+
+            # D. Control
             control_cmd = controller.run_step(
-                ego_speed, 
-                ego_transform, 
-                target_speed, 
+                ego_speed,
+                ego_transform,
+                target_speed,
                 waypoints
             )
-            
-            # D. Actuation
+
+            # E. RAIL: Imitation Learning (collect or blend)
+            if learner:
+                try:
+                    state_vec = learner.extract_state(ego_speed, ego_transform, target_speed, nearby)
+                    if config.LEARNING_COLLECT_DATA:
+                        learner.record_step(state_vec, control_cmd)
+                    elif config.LEARNING_ENABLED:
+                        learned_cmd = learner.predict(state_vec)
+                        control_cmd = ImitationLearner.blend_controls(control_cmd, learned_cmd)
+                except Exception:
+                    pass  # Learning failure should not stop driving
+
+            # F. Actuation
             interface.apply_control(control_cmd)
             
             # E. Stress Test: Respawn Lead Intermittently
@@ -130,14 +174,12 @@ def main():
                  # Destroy old one to prevent duplicates if it survived
                  if lead_vehicle and lead_vehicle.is_alive:
                       lead_vehicle.destroy()
-                 
+
                  # Spawn new one using robust logic
                  lead_vehicle = spawn_lead_vehicle(20.0)
                  if lead_vehicle:
                       # Reset physics just in case
                       lead_vehicle.set_target_velocity(carla.Vector3D(0,0,0))
-                 # Reset speed
-                 lead_vehicle.set_target_velocity(carla.Vector3D(0,0,0))
             
             # Debug Output
             if data['frame'] % 20 == 0:
@@ -150,6 +192,11 @@ def main():
         import traceback
         traceback.print_exc()
     finally:
+        # Save collected driving data if in data-collection mode
+        if learner and config.LEARNING_COLLECT_DATA:
+            learner.save_data()
+            print("Driving data saved for imitation learning training.")
+
         visualizer.cleanup()
         if lead_vehicle and lead_vehicle.is_alive:
             lead_vehicle.destroy()

@@ -1,7 +1,9 @@
 import numpy as np
+import cv2
 import carla
 from sklearn.cluster import DBSCAN
 import math
+import config
 
 class DetectedObject:
     """
@@ -36,6 +38,129 @@ class DetectedObject:
     
     def get_acceleration(self):
         return carla.Vector3D(0,0,0) # Not estimated yet
+
+class CameraPerceptionModule:
+    """
+    Camera-based obstacle detection adapted from RAIL/vision_module.py.
+    Uses edge detection + contour filtering on the front camera feed,
+    then projects 2D detections into 3D world coordinates via pinhole model.
+    """
+    def __init__(self):
+        cam_cfg = config.SENSORS['camera_front']
+        self.img_w = cam_cfg['image_size_x']
+        self.img_h = cam_cfg['image_size_y']
+        self.fov = cam_cfg['fov']
+
+        # Pinhole intrinsics from FOV
+        self.focal = self.img_w / (2.0 * math.tan(math.radians(self.fov / 2.0)))
+        self.cx = self.img_w / 2.0
+        self.cy = self.img_h / 2.0
+
+        # Camera extrinsics (mount position on ego)
+        self.cam_x = cam_cfg['x']
+        self.cam_z = cam_cfg['z']
+
+        # Tuning
+        self.min_contour_area = config.CAMERA_MIN_CONTOUR_AREA
+        self.max_detections = config.CAMERA_MAX_DETECTIONS
+        self.next_cam_id = 5000
+
+    def process(self, camera_image, ego_transform):
+        """
+        Detects obstacles from camera image and projects them into world frame.
+        Returns list of DetectedObject with approximate world positions.
+        """
+        if camera_image is None:
+            return []
+
+        try:
+            # Convert CARLA image buffer to numpy BGR
+            array = np.frombuffer(camera_image.raw_data, dtype=np.uint8)
+            array = array.reshape((self.img_h, self.img_w, 4))  # BGRA
+            bgr = array[:, :, :3]
+
+            # Only look at bottom 60% of image (road area, not sky)
+            roi_top = int(self.img_h * 0.4)
+            roi = bgr[roi_top:, :, :]
+
+            # Use Canny edge detection instead of adaptive threshold
+            # (much less prone to false positives on road textures)
+            gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+            blurred = cv2.GaussianBlur(gray, (7, 7), 0)
+            edges = cv2.Canny(blurred, 50, 150)
+
+            # Morphological cleanup — close gaps, then remove small noise
+            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (7, 7))
+            edges = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel)
+
+            # Find contours with strict filtering
+            contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+            candidates = []
+            for cnt in contours:
+                area = cv2.contourArea(cnt)
+                if area < self.min_contour_area:
+                    continue
+
+                x, y, w, h = cv2.boundingRect(cnt)
+                aspect = h / max(w, 1)
+
+                # Filter: obstacles should be somewhat tall (not flat road markings)
+                if aspect < 0.3:
+                    continue
+                # Filter: not unreasonably wide (not the entire road)
+                if w > self.img_w * 0.6:
+                    continue
+
+                # Pixel coords in full image (offset by ROI top)
+                v_full = roi_top + y + h  # bottom of detection in full image
+                u_full = x + w / 2.0
+
+                candidates.append((area, u_full, v_full))
+
+            # Sort by area descending, take top N
+            candidates.sort(key=lambda c: -c[0])
+            candidates = candidates[:self.max_detections]
+
+            detections = []
+            for _, u, v in candidates:
+                # Estimate depth via ground-plane assumption
+                if v <= self.cy:
+                    continue
+
+                depth = self.focal * self.cam_z / (v - self.cy)
+                if depth < 3.0 or depth > 50.0:
+                    continue
+
+                # Back-project to camera-local 3D
+                x_local = depth
+                y_local = (u - self.cx) * depth / self.focal
+
+                # Transform to world using ego transform
+                yaw_rad = math.radians(ego_transform.rotation.yaw)
+                cos_y, sin_y = math.cos(yaw_rad), math.sin(yaw_rad)
+
+                ego_x = self.cam_x + x_local
+                ego_y = y_local
+
+                world_x = ego_transform.location.x + ego_x * cos_y - ego_y * sin_y
+                world_y = ego_transform.location.y + ego_x * sin_y + ego_y * cos_y
+                world_z = ego_transform.location.z
+
+                obj = DetectedObject(
+                    self.next_cam_id,
+                    carla.Location(world_x, world_y, world_z)
+                )
+                obj.relative_velocity = 0.0
+                obj.detection_source = 'camera'
+                self.next_cam_id += 1
+                detections.append(obj)
+
+            return detections
+
+        except Exception:
+            return []
+
 
 class PerceptionModule:
     def __init__(self):
@@ -223,9 +348,29 @@ class PerceptionModule:
             
         return detected_objects
 
+    def fuse_camera_detections(self, lidar_radar_objects, camera_objects, dedup_radius=3.0):
+        """
+        Merges camera detections with LiDAR+Radar detections.
+        Camera detections that are within dedup_radius of an existing detection are discarded.
+        Novel camera detections (no LiDAR/Radar match) are added as supplementary.
+        """
+        fused = list(lidar_radar_objects)
+
+        for cam_obj in camera_objects:
+            cam_loc = cam_obj.get_location()
+            is_duplicate = False
+            for existing in lidar_radar_objects:
+                if cam_loc.distance(existing.get_location()) < dedup_radius:
+                    is_duplicate = True
+                    break
+            if not is_duplicate:
+                fused.append(cam_obj)
+
+        return fused
+
     def get_matrix(self, transform):
         """Creates a 4x4 transformation matrix from a carla.Transform."""
-        # This is expensive in Python. Use CARLA's transform method on individual Points if Count < 1000? 
+        # This is expensive in Python. Use CARLA's transform method on individual Points if Count < 1000?
         # Or just use the native `transform(location)` one by one for Centroids.
         # Since we only transform Centroids (few objects), we don't need numpy-batch transform.
         pass

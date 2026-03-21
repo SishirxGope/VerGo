@@ -24,7 +24,7 @@ OVERTAKE_ON_RIGHT = True  # Opposite of driving side
 # -- Weather Configuration -----------------------------------------------------
 # ==============================================================================
 # Presets: 'ClearNoon', 'HeavyRain', 'Storm'
-WEATHER_PRESET = 'HeavyRain' 
+WEATHER_PRESET = 'ClearNoon' 
 
 # ==============================================================================
 # -- Vehicle Configuration -----------------------------------------------------
@@ -54,19 +54,19 @@ SENSORS = {
         'type': 'sensor.camera.rgb',
         'x': 2.0, 'y': 0.0, 'z': 1.5,
         'roll': 0.0, 'pitch': 0.0, 'yaw': 0.0,
-        'image_size_x': 640, 'image_size_y': 480, 'fov': 90
+        'image_size_x': 320, 'image_size_y': 240, 'fov': 90
     },
     'camera_rear': {
         'type': 'sensor.camera.rgb',
         'x': -2.0, 'y': 0.0, 'z': 1.5,
         'roll': 0.0, 'pitch': 0.0, 'yaw': 180.0,
-        'image_size_x': 640, 'image_size_y': 480, 'fov': 90
+        'image_size_x': 320, 'image_size_y': 240, 'fov': 90
     },
     'camera_tps': {
         'type': 'sensor.camera.rgb',
         'x': -5.5, 'y': 0.0, 'z': 2.8,
         'roll': 0.0, 'pitch': -15.0, 'yaw': 0.0,
-        'image_size_x': 640, 'image_size_y': 480, 'fov': 90
+        'image_size_x': 320, 'image_size_y': 240, 'fov': 90
     },
     'gnss': {
         'type': 'sensor.other.gnss',
@@ -106,3 +106,31 @@ PID_LONGITUDINAL = {
 }
 
 PURE_PURSUIT_LOOKAHEAD = 6.0 # meters
+
+# ==============================================================================
+# -- Camera Perception (RAIL Integration) -------------------------------------
+# ==============================================================================
+CAMERA_PERCEPTION_ENABLED = False   # Experimental — set True to enable camera obstacle detection
+CAMERA_MIN_CONTOUR_AREA = 3000     # Minimum contour area in pixels (high to filter road texture)
+CAMERA_ADAPTIVE_BLOCK_SIZE = 31    # Block size for adaptive thresholding (must be odd)
+CAMERA_ADAPTIVE_C = 10             # Constant subtracted from mean in adaptive threshold
+CAMERA_MAX_DETECTIONS = 5          # Cap detections per frame to prevent false-positive flooding
+
+# ==============================================================================
+# -- Local Grid Planner (RAIL Integration) ------------------------------------
+# ==============================================================================
+LOCAL_GRID_ENABLED = False          # Experimental — set True to enable A* local avoidance
+LOCAL_GRID_ROWS = 50               # Grid cells in forward direction
+LOCAL_GRID_COLS = 30               # Grid cells in lateral direction
+LOCAL_GRID_CELL_SIZE = 1.0         # Meters per cell (50m x 30m coverage)
+LOCAL_GRID_INFLATE_CELLS = 2       # Obstacle inflation radius in cells (vehicle width margin)
+
+# ==============================================================================
+# -- Imitation Learning (RAIL Integration) ------------------------------------
+# ==============================================================================
+LEARNING_ENABLED = False            # Set True to enable learned control blending
+LEARNING_COLLECT_DATA = False       # Set True to record driving data for training
+LEARNING_INPUT_DIM = 5             # [ego_speed, heading_error, obs_dist, obs_angle, target_speed]
+LEARNING_LR = 0.001                # Learning rate
+LEARNING_EPOCHS = 100              # Training epochs
+LEARNING_BLEND_ALPHA = 0.2         # Blend weight: 0=full classical, 1=full learned
