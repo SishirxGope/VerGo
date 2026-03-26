@@ -1,4 +1,5 @@
 import math
+import heapq
 import numpy as np
 import carla
 import config
@@ -160,18 +161,24 @@ class BehaviorPlanner:
         elif self.state == BehaviorState.OVERTAKE:
             # We must stay in this lane until the victim is well behind us
             victim_far_behind = True
-            if self.overtake_victim_loc:
-                for vehicle in nearby_vehicles:
-                    if vehicle.get_location().distance(self.overtake_victim_loc) < 2.0:
-                        v_loc = vehicle.get_location()
-                        ego_loc = ego_transform.location
-                        # Check longitudinal distance (Ego in front of Victim)
-                        fwd = ego_transform.get_forward_vector()
-                        vec = ego_loc - v_loc
-                        long_dist = fwd.x * vec.x + fwd.y * vec.y
-                        
-                        if long_dist < 30.0: # Professional lead: 30m before clearing
-                            victim_far_behind = False
+            # Identify the original lane we want to return to
+            route_lane_id = self.global_route[0][0].lane_id if self.global_route else None
+            ego_loc = ego_transform.location
+            fwd = ego_transform.get_forward_vector()
+            
+            for vehicle in nearby_vehicles:
+                v_loc = vehicle.get_location()
+                v_wp = self.map.get_waypoint(v_loc)
+                
+                # Check vehicles in the lane we want to return to
+                if route_lane_id and v_wp.lane_id == route_lane_id:
+                    vec = ego_loc - v_loc
+                    long_dist = fwd.x * vec.x + fwd.y * vec.y
+                    
+                    # If vehicle is within 40m and ego is less than 18m ahead of it
+                    if long_dist < 18.0 and ego_loc.distance(v_loc) < 40.0:
+                        victim_far_behind = False
+                        break
             
             if victim_far_behind:
                 print("DEBUG: Overtake stabilization complete. Resuming Cruise.")
@@ -274,9 +281,13 @@ class BehaviorPlanner:
             for vehicle in nearby_vehicles:
                 # Skip the vehicle we are intentionally passing
                 skip_states = [BehaviorState.CHANGE_LANE_LEFT, BehaviorState.CHANGE_LANE_RIGHT, BehaviorState.OVERTAKE]
-                if self.state in skip_states and getattr(self, 'overtake_victim_loc', None):
-                    if vehicle.get_location().distance(self.overtake_victim_loc) < 2.0:
+                if self.state in skip_states:
+                    if vehicle.id == self.overtake_victim_id:
                         continue
+                    if getattr(self, 'target_lane_wp', None):
+                        v_wp = self.map.get_waypoint(vehicle.get_location())
+                        if v_wp.lane_id != self.target_lane_wp.lane_id:
+                            continue
 
                 dx = vehicle.get_location().x - ego_loc.x
                 dy = vehicle.get_location().y - ego_loc.y
@@ -431,3 +442,165 @@ class MotionPlanner:
             waypoints.append(carla.Transform(new_loc, chosen_wp.transform.rotation))
         
         return waypoints
+
+
+class LocalGridPlanner:
+    """
+    Local occupancy-grid planner adapted from RAIL/planning_module.py.
+    Creates a small grid around the ego vehicle, marks obstacles, inflates them
+    for safety, and runs A* to find a collision-free local path.
+    """
+    def __init__(self):
+        self.grid_rows = config.LOCAL_GRID_ROWS       # cells in forward direction
+        self.grid_cols = config.LOCAL_GRID_COLS       # cells in lateral direction
+        self.cell_size = config.LOCAL_GRID_CELL_SIZE  # meters per cell
+        self.inflate_cells = config.LOCAL_GRID_INFLATE_CELLS  # obstacle inflation radius
+
+        # Grid covers: forward = grid_rows * cell_size, lateral = grid_cols * cell_size
+        # Ego is at (grid_rows - 1, grid_cols // 2)  — bottom center
+
+    def create_grid(self, ego_transform, detected_objects):
+        """
+        Builds a 2D occupancy grid in ego-local frame.
+        0 = free, 1 = occupied.
+        """
+        grid = np.zeros((self.grid_rows, self.grid_cols), dtype=np.int8)
+
+        ego_loc = ego_transform.location
+        yaw_rad = math.radians(ego_transform.rotation.yaw)
+        cos_y, sin_y = math.cos(yaw_rad), math.sin(yaw_rad)
+
+        for obj in detected_objects:
+            obj_loc = obj.get_location()
+            # World to ego-local
+            dx = obj_loc.x - ego_loc.x
+            dy = obj_loc.y - ego_loc.y
+            local_x = dx * cos_y + dy * sin_y   # forward
+            local_y = -dx * sin_y + dy * cos_y  # left-positive
+
+            # Convert to grid indices
+            row = self.grid_rows - 1 - int(local_x / self.cell_size)
+            col = self.grid_cols // 2 + int(local_y / self.cell_size)
+
+            if 0 <= row < self.grid_rows and 0 <= col < self.grid_cols:
+                grid[row][col] = 1
+
+        # Inflate obstacles for vehicle width safety margin
+        if self.inflate_cells > 0:
+            grid = self._inflate(grid)
+
+        return grid
+
+    def _inflate(self, grid):
+        """Dilates obstacles by inflate_cells radius."""
+        inflated = grid.copy()
+        rows, cols = grid.shape
+        for r in range(rows):
+            for c in range(cols):
+                if grid[r][c] == 1:
+                    for dr in range(-self.inflate_cells, self.inflate_cells + 1):
+                        for dc in range(-self.inflate_cells, self.inflate_cells + 1):
+                            nr, nc = r + dr, c + dc
+                            if 0 <= nr < rows and 0 <= nc < cols:
+                                inflated[nr][nc] = 1
+        return inflated
+
+    def astar(self, grid, start, goal):
+        """
+        A* search on occupancy grid. Adapted from RAIL/planning_module.py
+        with added diagonal movement (8-connected) for smoother paths.
+        """
+        rows, cols = grid.shape
+        open_set = []
+        heapq.heappush(open_set, (0, start))
+        came_from = {}
+        g = {start: 0}
+
+        # 8-connected neighbors (diagonals cost sqrt(2))
+        neighbors = [(-1, 0, 1.0), (1, 0, 1.0), (0, -1, 1.0), (0, 1, 1.0),
+                      (-1, -1, 1.414), (-1, 1, 1.414), (1, -1, 1.414), (1, 1, 1.414)]
+
+        while open_set:
+            _, current = heapq.heappop(open_set)
+
+            if current == goal:
+                path = []
+                while current in came_from:
+                    path.append(current)
+                    current = came_from[current]
+                path.append(start)
+                return path[::-1]
+
+            for dr, dc, cost in neighbors:
+                nr, nc = current[0] + dr, current[1] + dc
+                neighbor = (nr, nc)
+
+                if 0 <= nr < rows and 0 <= nc < cols and grid[nr][nc] == 0:
+                    temp_g = g[current] + cost
+                    if neighbor not in g or temp_g < g[neighbor]:
+                        came_from[neighbor] = current
+                        g[neighbor] = temp_g
+                        h = math.sqrt((goal[0] - nr)**2 + (goal[1] - nc)**2)
+                        heapq.heappush(open_set, (temp_g + h, neighbor))
+
+        return []  # No path found
+
+    def plan_local_path(self, ego_transform, detected_objects):
+        """
+        Main entry point: creates grid, runs A*, converts path to world waypoints.
+        Returns list of carla.Transform representing the local avoidance path.
+        Returns empty list if no avoidance needed or path cannot be found.
+        """
+        # Safety: too many detections likely means false positives
+        if len(detected_objects) > 15:
+            return []
+
+        grid = self.create_grid(ego_transform, detected_objects)
+
+        # Start: ego position (bottom center of grid)
+        start = (self.grid_rows - 1, self.grid_cols // 2)
+        # Goal: top center (farthest forward point)
+        goal = (0, self.grid_cols // 2)
+
+        # Only plan if there are obstacles in the grid
+        obstacle_count = np.sum(grid == 1)
+        if obstacle_count == 0:
+            return []  # No obstacles, let global planner handle it
+
+        # Safety: if too much of the grid is occupied, likely false positives
+        grid_total = self.grid_rows * self.grid_cols
+        if obstacle_count > grid_total * 0.3:
+            return []  # More than 30% occupied = probably noise
+
+        # Safety: if start or goal is blocked, can't plan
+        if grid[start[0]][start[1]] == 1 or grid[goal[0]][goal[1]] == 1:
+            return []
+
+        try:
+            path = self.astar(grid, start, goal)
+        except Exception:
+            return []
+
+        if not path or len(path) < 3:
+            return []
+
+        # Convert grid path back to world coordinates
+        ego_loc = ego_transform.location
+        yaw_rad = math.radians(ego_transform.rotation.yaw)
+        cos_y, sin_y = math.cos(yaw_rad), math.sin(yaw_rad)
+
+        world_path = []
+        for row, col in path[::3]:  # Subsample every 3rd point for smoothness
+            local_x = (self.grid_rows - 1 - row) * self.cell_size
+            local_y = (col - self.grid_cols // 2) * self.cell_size
+
+            world_x = ego_loc.x + local_x * cos_y - local_y * sin_y
+            world_y = ego_loc.y + local_x * sin_y + local_y * cos_y
+
+            wp_transform = carla.Transform(
+                carla.Location(world_x, world_y, ego_loc.z),
+                carla.Rotation(0, ego_transform.rotation.yaw, 0)
+            )
+            world_path.append(wp_transform)
+
+        return world_path
