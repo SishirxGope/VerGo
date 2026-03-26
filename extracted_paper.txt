@@ -1,0 +1,548 @@
+979-8-3315-2076-2/25/$31.00 ©2025 IEEE RAIL: Recursive A* and Imitation Learning-Based 
+Approach for Collision-Free Path Estimation 
+ 
+Subhadip Chandra   
+IEM Centre of Excellence for 
+Data Science, Department of CSE 
+(AIML), Institute of Engineering  
+and Management, University of 
+Engineering & Management,  
+Kolkata-700091, India . 
+subhadipchnadra@gmail.com  
+ 
+Anumoy Pathak  
+Department of CSBS, 
+Institute of Engineering and 
+Management, University of 
+Engineering & Management,  
+Kolkata-700091, India. 
+malapathak.india@gmail.com  Kamlesh Kumar Dubey  
+Department of Applied Sciences 
+and Humanities,  
+Invertis University 
+Bareilly, UP, India 
+kkdubey4maths@gmail.com Gaurav Agarwal  
+Department of Computer 
+Science & Engineering, 
+Invertis University 
+Bareilly, UP, India 
+gaurav.a1@invertis.org 
+ 
+ 
+ 
+Abstract — This paper discusses collision-free path 
+planning for autonomous vehicles, a crucial aspect of their 
+development. The authors propose a method to detect  objects 
+of different sizes, both dynamic and static, and co mpare 
+algorithms for path planning and avoidance of colli sion. 
+They use traditional path-finding algorithms like A * 
+Algorithm, which include heuristics and Rapidly Exp loring 
+Random Tree (RRT) algorithms for real-time analysis . The 
+authors discuss the challenges of ensuring path-pla nning 
+algorithms scale to large environments and operate in real-
+time, and the need for future work on improving the  
+robustness of path-planning algorithms in dynamic a nd 
+unpredictable scenarios.  
+The methodology involves creating a dataset, analyz ing 
+images, and training neural networks to imitate the  collision-
+free path- finding algorithm. Static obstacles chan ge their 
+coordinates with time, making working in dynamic 
+environments difficult. Recursive A* and Imitation 
+Learning (RAIL) based approaches analyze obstacles frame 
+by frame, making them static at a particular time-i nstant. 
+The Generative Adversarial Network (GAN) and Invers e 
+Reinforcement Learning are used to train an imitati on 
+learning model for faster trajectory finding in aut onomous 
+vehicles. Future development could involve using th e 
+Internet of Things (IoT) to share the trained traje ctory-
+finding model results.  
+Keywords—  collision free path planning, imitation learning, 
+heuristic, a* algorithm, obstacle detection  
+I.  INTRODUCTION  
+The appeal of autonomous vehicles in manufacturing,  
+transportation, and routine works and work in hazar dous 
+environments is increasing every day. For the progr ess 
+in the domain of autonomous vehicles proper traject ory 
+finding for loco-motion is important. Autonomous 
+vehicular transport is not possible without proper path 
+planning. Overcoming the obstacles in a dynamic 
+environment is a major issue. Hence collision-free trajectory finding algorithms become very important . 
+Over the years many path-finding algorithms have be en 
+developed and implemented in different areas. Dijks tra’s 
+algorithm [1] is one of the best shortest path-find ing 
+algorithms for static environments. According to Fo ed, 
+A*[2] is one of the best approaches to finding a pa th. 
+According to Noreen, Rapidly Exploring Random 
+Trees (RRT) [3], RRT* are the algorithms that have 
+optimized the way of path finding. But the problem 
+arises when it’s a dynamic environment, where the 
+obstacles are changing their position at every inst ant. All 
+the above-mentioned algorithms are fruitful only in  the 
+case of a static environment. Autonomous vehicles n eed 
+real-time analysis to find the perfect trajectory. Newer 
+approaches such as imitation learning are one of th e 
+most researched areas for finding paths for autonom ous 
+vehicles. But such kind of deep learning model requ ires 
+huge training data. It’s also not possible to demon strate 
+every complex situation and feed it to the model. S o, 
+in this article, we use a traditional path-finding 
+algorithm like A* and modify it so that its behavio r can 
+be imitated for proper trajectory finding in real-t ime. In 
+this paper, we propose a novel approach that offers  the 
+following:  
+…• Detects obstacles in a dynamic environment.  
+• Imitates the behavior of A* (Recursive)search 
+algorithm . 
+• Finds a collision-free trajectory for autonomous 
+vehicular system. 
+II.  LITERATURE SURVEY  
+Collision-free path planning is a basic problem in 
+autonomous vehicular navigation. Here we need to 2025 8th International Conference on Electronics, Materials Engineering & Nano-Technology (IEMENTech) | 979-8-3315-2076-2/25/$31.00 ©2025 IEEE | DOI: 10.1109/IEMENTECH65115.2025.10959614
+Authorized licensed use limited to: INSTITUTE OF ENGINEERING & MANAGEMENT TRUST. Downloaded on April 25,2025 at 04:22:18 UTC from IEEE Xplore.  Restrictions apply. 
+determine a trajectory from a starting point to a d estination 
+while avoiding obstacles. The challenge grows with the 
+complexity of the environment and the need for real -time 
+computation. The creation of novel reinforcement le arning 
+algorithms, like actor- critic, for constrained Mar kov 
+decision processes (CMDPs) has been the focus of re cent 
+research [4,5,6]. Although these techniques are app reciated 
+for their simplicity and wide applicability, they f requently 
+call for a model or simply attempt to satisfy safet y 
+requirements in a probabilistic way [7]. As an alte rnative, 
+some strategies concentrate on creating control bar rier 
+functions (CBFs) that can assure safety. Usually, a  safety 
+filter is integrated into a reference controller to  create these 
+safe controllers. In the obstacle avoidance problem , the 
+use of CBFs in conjunction with model predictive co ntrol 
+(MPC) has shown notable outcomes [8, 9, 10]. There 
+are, in fact, controllers that combine control barr ier 
+functions and reinforcement learning [11, 12]. 
+Nevertheless, these controllers treat the CBF and R L as two 
+distinct controllers and usually do not explicitly account 
+for the action adjustments made by the CBF layer wi thin 
+the loss function of the RL algorithm. 
+A.  Path Planning Techniques 
+Dijkstra’s Algorithm is one of the earliest methods  
+used for path finding, Dijkstra’s algorithm compute s the 
+shortest path between nodes in a graph, considering  edge 
+weight. It is applicable to static environments but  may fail 
+in dynamic obstacles environment. Whereas an extens ion 
+of Dijkstra’s, the A* algorithm includes heuristics  to select 
+paths that are more promising. It combines the cost  to reach 
+the node and the estimated cost to the goal, making  it 
+effective for real-time ap- plications. RRT algorit hm is 
+designed to explore large spaces quickly. They 
+incrementally build a tree of feasible paths and ar e 
+particularly useful for complex, high-dimensional s paces. 
+Variants like RRT* improve path quality by optimizi ng 
+paths over time. 
+B.  Collision Avoidance Strategies 
+According to Wei, the behavioural planning [13], 
+approach involves predicting the behaviour of other  agents 
+and adjusting the vehicle’s path accordingly. It 
+incorporates models of traffic rules and human-like  
+decision-making processes. According to Ho, imitati on 
+learning [14] models are trained to mimic the behav iour 
+of human drivers or expert systems. This method lev erages 
+demonstrations to learn complex driving policies an d 
+improve decision-making in various scenarios. 
+C.  Scalability and Real-Time Performance 
+Ensuring that path-planning algorithms scale to lar ge 
+environments and operate in real time remains a cha llenge. 
+Techniques like parallel computing and hardware 
+acceleration are being explored to address this. 
+D.  Dynamic Environments 
+Handling dynamic obstacles and changing 
+environments is a major research area. Future work involves improving the robustness of path-planning 
+algorithms in highly dynamic and unpredictable scen arios. 
+III.  PROPOSED METHODOLOGY  
+At the very beginning, the images of roads and traf fic 
+are collected from various traffic datasets availab le on the 
+internet. In the next phase, data pre-processing is  done. 
+At first, the nature of the environment is taken in to account. 
+Then the RGB images are converted to grayscale imag es. 
+After that, the grayscale images are masked contour s 
+are plotted and the contour area is calculated. Obj ects with 
+considerable area are considered. Thus various obst acles 
+are detected from the images. Following it obstacle  matrix 
+is created. Then Iterative A* algorithm is implemen ted on 
+the matrix to find the optimal path. After that, a GAN model 
+is trained to imitate the behaviour of Iterative A*  and apply 
+it on test dataset. Thus, collision free path findi ng algorithm 
+is implemented. 
+ 
+Fig. 1 Overall Flow of the Proposed Methodology 
+ 
+A.  Dynamic Environments 
+The environment is one of the key aspects. 
+Environments are of two types: a) Static and b) 
+Dynamic. Fig. 2(a) represents static obstacles on w hich 
+do not change with time and Fig. 2(b) represents a 
+dynamic obstacle which changes its coordinates with  
+time. For autonomous vehicles the dynamic 
+environment is to be considered. In dynamic 
+environment the obstacles change their coordinates 
+with respect to time but working in a dynamic 
+environment is difficult. In Fig. 2 F(x, y) represe nts a 2D 
+plane with obstacles having x and y co-ordinates. 
+ 
+Fig. 2 (a) Static Environment (b) Dynamic Environme nt 
+ 
+B.  Obstacle Detection 
+Authorized licensed use limited to: INSTITUTE OF ENGINEERING & MANAGEMENT TRUST. Downloaded on April 25,2025 at 04:22:18 UTC from IEEE Xplore.  Restrictions apply. 
+Recursive A* and Imitation Learning (RAIL) based 
+approach for collision-free path estimation, analys es 
+obstacles frame by frame. Thus, making obstacles st atic 
+at a particular time-instant. First, a frame is mas ked and 
+contours are plotted. The area of each contour is 
+calculated. Considerable-sized objects are marked a nd 
+analysed. Fig. 3 represents a masked frame. The 
+background is removed. As clear from Fig. 3 the 
+obstacles appear in white. In Fig. 4 contours are p lotted 
+on a frame. The green spots which are visible in Fi g. 4 
+are the contours; the area of such spots is calcula ted to 
+find the size of obstacles. 
+ Contour Area Calculation: According to the discret e 
+version of Green’s Theorem [15] bivariate differenc e 
+calculus provides a general and unifying framework for the 
+description and generation of incremental algorithm s. It 
+may be used to compute various statistics about reg ions 
+bounded by a finite and closed polygonal path. Typi cally, 
+we use Green’s theorem as an alternative way to cal culate 
+a line integral CF(ds). If, for example, we are in 2D space, 
+C is a simple closed curve, and F(x, y) is defined 
+everywhere inside C, we can apply Green’s theorem t o 
+convert the line integral into a double integral. I nstead of 
+calculating line integral CF(ds) directly, we calcu late the 
+double integral 
+ 
+                  
+                        Fig. 3 Masked Frame (Image)  
+D(( F 2) × (F 1) y)dA                (1)  
+If we are given the double integral Df(x, y)dA, we can 
+use Green’s theorem only if there happens to be a v ector 
+field F(x, y) so that, f(x, y) = (F2)×(F1)y. The ar ea of a 
+region D is equal to the double integral of f(x, y)  = 1 over 
+D. Now using this formula we individually calculate  the 
+area of all the objects detected in the masked imag e. The 
+tire sizes that are mostly used range from 185/65 R 15 to 
+265/70R17. Considering the lower dimension, which i s 
+185/65 R15, the diameter of the tire is 19.68 inche s (15+ 
+(0.65*185*0.039)). Now keeping the camera resolutio n 
+and the tire size in mind, any object with a contou r area 
+greater than 100 sq. inches is treated as an obstac le. The 
+coordinates of such obstacles in the frame are push ed into 
+an obstacle list. C.  Obstacle Matrix 
+A 2-D matrix is created, having similar dimensions as 
+that of the image. The coordinates from the obstacl e lists 
+are popped out one by one. Then the coordinates of the 2-
+D matrix which are matching with the popped-out 
+coordinates are marked with “1”s and the rest with “0”s. 
+The same is represented in Fig. 5. Fig. 5(a) shows the 
+obstacles identified in a frame. Fig. 5(b) represen ts the 
+respective obstacle matrix where obstacles are repr esented 
+as “1”. 
+                 
+                       Fig. 4 Contour Plotted Frame  (Image) 
+ 
+                          (a) ……………………………….  (b) 
+Fig. 5 (a) Detected Obstacles (b) Obstacle Matrix 
+ 
+D.  Recursive A* Search Algorithm 
+When it comes to search algorithms, A* has 
+served a lot of purposes. It is a heuristic method to 
+find path avoiding obstacles. A* has the following 
+functions: g(n): The cost of the path from the star t node 
+to the current node n. h(n): The heuristic estimate  of the 
+cost from n to the goal. f(n) = g(n) + h(n): The to tal 
+estimated cost of the cheapest solution through n. A* 
+finds the path between a starting node(S) and a goa l node 
+(G). But A* fails in a dynamic environment if the g oal 
+node overlaps with any kind of obstacles which was not 
+there previously. Fig. 6(a), (b), and (c) show a gr id 
+where red dots are obstacles and ’S’ and ‘G’ are st arts 
+and goals respectively. 
+         (a)   (b)  (c)  
+Fig. 6 ( a ) A* Algorithmic Approach, (b) Fail Case of A* 
+Algorithm (c) Recursive A* Algorithmic Approach 
+ 
+Authorized licensed use limited to: INSTITUTE OF ENGINEERING & MANAGEMENT TRUST. Downloaded on April 25,2025 at 04:22:18 UTC from IEEE Xplore.  Restrictions apply. 
+In Fig. 6(a), we see that, using A* algorithm we 
+are able to reach the destination. But problem occu rs 
+when obstacles reside over goal as seen in Fig. 6(b ). In 
+that case A* fails to find the collision free path.  So we 
+come up with recursive A* algorithm which goes as 
+close as possible up to the goal as evident from Fi g. 6(c). 
+In case of recursive A*, the immediate surroundings  of 
+the start node are taken as the goal (pseudo goal).  If path 
+is possible then that goal becomes the pseudo start  node 
+and its immediate surrounding becomes the goal. Thi s 
+process is continued until the desired goal is reac hed or 
+at least goes close enough. In this case left and f orward 
+direction is preferred for analysing the immediate 
+surroundings. So, RAIL uses A* in a recursive manne r. 
+In Recursive-A*(RA*) each next node from the starti ng 
+node is treated as a pseudo goal until the real goa l is 
+reached. This approach helps to get closer to the r eal 
+goal in case of any obstacle overlap. 
+E.  Imitation Learning 
+According to Choi Imitation learning (IL) [16] is a  ma- 
+chine learning paradigm in which an agent learns a 
+policy by observing and mimicking expert demonstrat ions, 
+without needing explicit programming or reward sign als as 
+in traditional reinforcement learning. It is common ly used 
+in robotics, self-driving cars, and game playing, w here 
+learning directly from demonstrations can be more e fficient 
+than learning purely from trial and error. The math ematical 
+foundations behind imitation learning can be unders tood 
+by examining its core components: supervised learni ng, 
+policy learning, and inverse reinforcement learning . Here 
+we use Generative Adversarial Network (GAN) and 
+Inverse Reinforcement Learning (IRL). GAN is a deep  
+learning architecture that trains two neural networ ks 
+competing against each other. One network generates  new 
+data by taking input data and modifying it as much as 
+possible. The other network checks whether the gene rated 
+data resembles the original or not. This process of  
+generating and checking is continued until the pred icting 
+network fails to distinguish between the fake and o riginal 
+data. Thus, a policy is learned. Reinforcement lear ning 
+involves an agent, reward function, and policy. The  agent 
+learns to maximize rewards in an environment. The r eward 
+function (R(s, a, s)) quantifies the 
+desirability of a state transition (s → s) caused by an 
+action a. The policy ((as)) maps states to actions.  In the 
+case of Inverse 
+Reinforcement Learning there is a given set of 
+trajectories (state-action pairs) = (s1, a1), (s2, a2), . . . = 
+(s1, a1), (s2, a2), . . . generated by an expert’s policy * and 
+the goal is to infer the reward function R(s, a, s)  that 
+explains *. The input to IRL is a set of expert tra jectories: 
+τ  = (s0, a0) , (s1, a1) . . . (sT, aT )     (2)  
+The expert’s policy (as) maximizes the expected 
+cumulative reward: 
+                             J (π) = E[∑ γ
+ tR(st, at) ∣π]               (3)                       
+      π∗ = arg max π  J(π)                             (4)                                                              R∗=argmax R(L(R;τ) )                                  (5)                             
+Here L is likelihood function, measuring how well R  
+explains the expert’s behavior. Therefore, IRL is u sed 
+to uncover the underlying preferences of an expert and to 
+use inferred rewards for training new agents or tra nsferring 
+behavior to different environments. Imitation learn ing 
+involves imitating the behavior of an expert. It in fers the 
+reward function R(s) that explains the expert’s beh avior 
+using IRL and trains a policy to maximize the infer red 
+reward function. In the case of autonomous vehicles , 
+training an imitation learning model requires a hug e 
+training time. So, the RA* is used as the expert tr ainer 
+whose behaviour is imitated for faster trajectory f inding. 
+IV.  ALGORITHM OF RAIL 
+ 
+Input : Real-time video of the road captured by a car 
+Output : Collision-free trajectory for the real-time 
+scenario 
+1.  Extract Frames are extracted from the video. 
+2.  While  frames are available in the video  do  
+3.            Convert the RGB frame into a grayscale fr ame. 
+4.            Remove the background of the frame and ma sk         
+…….. the frame. 
+5.            Plot the contours on the masked frame and        
+…….. calculate the contour area. 
+6.            Detect objects with considerable size. 
+7.  …….. Detect the coordinates of pixels as 
+…….. obstacles and append them into an obstacle 
+…….. list obs 
+8.            Create a 2-D matrix of similar dimension of the 
+…….. frame and fill that with  0s  
+9.            While  obs  list is not empty  do  
+10.                             Pop coordinates and stor e in C 
+11.                             Assign a value l to the coordinate of 
+………………... the .matrix matching C 
+12.             End While 
+13.             Set start, pstart  = (frame_height, 
+……... frame_height/2) 
+14.             Set goal  = (frame_width/2, frame_width/2),  
+15.             Set pgoal  = (frame_height – 1, frame_width/2) 
+16.             Create a list named path and   Set  i = 1 
+17.             While pstart (x coordinate) > goal(x 
+……… coordinate) .do 
+18.                 Create closed set  and open set  
+19.                 Open set = nodes to be evaluated, 
+………… initialized with the start node 
+20.                 Closed set  = nodes that have already 
+………... been evaluated, initially empty 
+21.                 Create a list named ppath  
+22.                 Initialize g(pstart ) = 0// g(n): The cost of 
+………... the path from the start node to  node n 
+23.                 Initialize g(other nodes) = ∞   
+24.  ………... Initialize f(pstart ) = h(pstart ) // h(n): A 
+………... heuristic function estimating the .. cost 
+………... from node n to the goal and f(n) = g(n) 
+………… + h(n): The estimated total .. cost .. of 
+………... the cheapest solution through n 
+25.                .While  Open Set is not empty do 
+26.                         Select the node n in the Open Set 
+Authorized licensed use limited to: INSTITUTE OF ENGINEERING & MANAGEMENT TRUST. Downloaded on April 25,2025 at 04:22:18 UTC from IEEE Xplore.  Restrictions apply. 
+……………….. with the smallest f(n) value  
+27.                         If  n is the pgoal  node then 
+ ………………… Reconstruct and store the path 
+………………… by tracing back through parent 
+………………… pointers in ppath  
+29.                         End If  
+30.                         Remove n from the Open Set  and add it 
+……………... to the Closed Set   
+31.                         For  each neighbor n′ of n 
+32.                                 If  n′ is in the Closed Set , skip it  
+33.                                 Calculate the tentat ive cost 
+………………….. g_tentative (n)= g(n) + cost( n, n′)  
+34.                                 If  n′ is not in the Open Set  or 
+…………………………. g_tentative (n) < g(n′) then  
+35.                                           Update g(n′) = 
+…………………………. g_tentative (n),  f(n′) .= g(n′) 
+…………………………. + h(n′)  
+36.                                           Set the pa rent of n′ to n  
+37.                                           If  n′ is not in the Open Set , 
+…………………………. add it to .the Open Set  
+38.                                 End If 
+39.                          End For 
+40.                   End While 
+41.                   If  Open set  is not empty then 
+42.                       Update i = i+1  
+43.                       Reverse ppath  and append into path  
+44.                       Update pstart = pgoal,  Update pgoal  = 
+……………. (frame_height – i, frame_width/2)  
+45.                   Else 
+46.                        Update i  = i+1  
+47.                        Update pgoal  = (frame_height – i, 
+…………….. frame_width/2)  
+48.           End While 
+49.          Train Imitation learning model to learn the  
+…… environment and path. 
+50.          Display path on the frame.  
+51.  End While         
+ 
+V.  RESULT  
+Table. 1, depicts the success rate achieved by vari ous 
+algorithms on the same test cases in a dynamic 
+environment (where the position of the obstacles is  not 
+fixed). It is clear from the table that RAIL is mor e 
+successful as compared to A* and Dijkstra’s algorit hms. 
+Table. 2. shows the execution time taken by the 
+different algorithms in different grid sizes such a s 
+25×25, 100×100, 250×250 and 500×500. With respect 
+to execution time, the proposed methodology execute s 
+faster compared to other conventional approaches. 
+Fig. 7 reflects a bar plot to compare between RAIL and 
+A*. Dijkstra’s algorithm in not considered in this figure 
+as it has a huge execution time as compared to the other 
+two. 
+Table. 1. Success Rate comparison with other 
+collision free path estimation algorithms.  
+Sl. 
+No. Algorithm Success 
+Rate 
+1 Dijkstra  0.0001(0.01 
+%) 2 A*  0.1(10%)  
+3 RAIL  0.812(81.2)  
+ 
+Table.  2. Time Efficiency Comparison with other 
+collision free path estimation algorithms 
+ 
+ 
+  
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Fig. 7 Graph showing comparison between A* and Recu rsive A* 
+ 
+VI.  Conclusion 
+Usage of a graph-based algorithm such as A* in a 
+dynamic environment is not feasible. But using it i n an 
+imitation learning model is something new. We 
+imitate the behavior of A* algorithm and implement it 
+in real time. Collision-free path planning and 
+autonomous vehicle navigation are rapidly evolving 
+fields. Advances in algorithms, sensor technologies , and 
+machine learning are driving improvements in safety , 
+efficiency, and robustness. Continued research and 
+development are needed to address remaining challen ges 
+and enable broader adoption of autonomous vehicles.  
+REFERENCES  
+[1]  Edsger W. Dijkstra. A note on two problems in conne xion with graphs. 
+Numerische Mathematik, 1:269–271, (1959) 
+ Algorithm Grid Size 
+(rows x 
+columns) Execution 
+Time(in ns) 
+Dijkstra (25×25) 621 
+(100×100) 9972 
+(250×250) 62430 
+(500×500) 249999 
+A* (25×25) 49 
+(100×100) 199 
+(250×250) 499 
+(500×500) 999 
+RAIL (25×25) 48 
+(100×100) 198 
+(250×250) 498 
+(500×500) 998 
+Authorized licensed use limited to: INSTITUTE OF ENGINEERING & MANAGEMENT TRUST. Downloaded on April 25,2025 at 04:22:18 UTC from IEEE Xplore.  Restrictions apply. 
+[2]  Daniel Foead, Alifio Ghifari, Marchel Budi Kusuma, Novita Hanafiah, 
+and Eric Gunawan. A systematic literature review of  a* pathfinding. 
+Procedia Computer Science, 179:507–514, (2021). 
+[3]  Iram Noreen, Amna Khan, and Zulfiqar Habib. A compa rison of rrt, 
+rrt* and rrt*- smart path planning algorithms. Inte rnational Journal of 
+Computer Science and Network Security (IJCSNS), 16( 10):20, (2016). 
+[4]  Cheng, R.; Orosz, G.; Murray, R.M.; Burdick, J.W. E nd-to-End Safe 
+Reinforcement Learning through Barrier Functions fo r Safety-Critical 
+Continuous Control Tasks. Proc. Aaai Conf. Artif. I ntell. 33, 3387–
+3395. (2019). 
+[5]  Tessler, C.; Mankowitz, D.J.; Mannor, S. Reward con strained policy 
+optimization, (2018). 
+[6]  Achiam, J.; Held, D.; Tamar, A.; Abbeel, P. Constra ined Policy Op- 
+timization. In Proceed- ings of the 34th Internatio nal Conference on 
+Machine Learning, Sydney, Australia, 6–11 August, p p. 22–31. (2017).  
+[7]  Gu, S.; Kuba, J.G.; Chen, Y.; Du, Y.; Yang, L.; Kno ll, A.; Yang, Y. Safe 
+Multi-Agent Re- inforcement Learning for Multi-Robo t Control. Artif. 
+Intell. , 319, 103905. (2023). 
+[8]  Du, D.; Han, S.; Qi, N.; Ammar, H.B.; Wang, J.; Pan , W. Reinforcement 
+Learning for Safe Robot Control Using Control Lyapu nov Barrier 
+Functions. In Proceedings of the 2023 IEEE Internat ional Conference 
+on Robotics and Automation (ICRA), London, UK, (202 3). 
+[9]  Zeng, J.; Zhang, B.; Sreenath, K. Safety-Critical M odel Predictive 
+Control with Discrete- Time Control Barrier Functio n. In Proceedings 
+of the 2021 American Control Conference (ACC), New Orleans, LA, 
+USA, (2021). 
+[10]  Thirugnanam, A.; Zeng, J.; Sreenath, K. Safety-Crit ical Control and 
+Planning for Obstacle Avoidance between Polytopes w ith Control Bar- 
+rier Functions. In Proceedings of the 2022 Internat ional Conference on 
+Robotics and Automation (ICRA) 2022, Philadelphia, PA, USA, 
+(2022).  
+[11]  Xue, H.; Lai, Y.H.; Sun, K. Human-like constraint-a daptive model pre- 
+dictive control with risk-tunable control barrier f unctions for 
+autonomous ships. Ocean. Eng. (2024). 
+[12]  Cohen, M.H.; Belta, C. Safe Exploration in Model-Ba sed 
+Reinforcement Learning Using Control Barrier Functi ons. 
+Automatica 2023, 147, 110684. 
+[13]  Junqing Wei, Jarrod M Snider, Tianyu Gu, John M Dol an, and 
+Bakhtiar Litkouhi. A behavioral planning framework for 
+autonomous driving. In 2014 IEEE Intelligent Vehicl es Symposium 
+Proceedings, pages 458–464. IEEE, (2014). 
+[14]  Jonathan Ho and Stefano Ermon. Generative adversari al imitation 
+learn- ing. Advances in neural information processi ng systems, 29, 
+(2016). 
+[15]  Srecko Brlek, Gilbert Labelle, and Annie Lacasse. T he discrete green 
+theorem and some applications in discrete geometry.  Theoretical Com- 
+puter Science, 346(2-3):200– 225, (2005). 
+[16]  Seongjin Choi, Jiwon Kim, and Hwasoo Yeo. Trajgail:  Generating 
+urban vehicle trajectories using generative adversa rial imitation 
+learning. Transportation Research Part C: Emerging Technologies, 
+128:103091, (2021). 
+ 
+Authorized licensed use limited to: INSTITUTE OF ENGINEERING & MANAGEMENT TRUST. Downloaded on April 25,2025 at 04:22:18 UTC from IEEE Xplore.  Restrictions apply. 

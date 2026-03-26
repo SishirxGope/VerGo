@@ -24,7 +24,7 @@ OVERTAKE_ON_RIGHT = True  # Opposite of driving side
 # -- Weather Configuration -----------------------------------------------------
 # ==============================================================================
 # Presets: 'ClearNoon', 'HeavyRain', 'Storm'
-WEATHER_PRESET = 'HeavyRain' 
+WEATHER_PRESET = 'ClearNoon'
 
 # ==============================================================================
 # -- Vehicle Configuration -----------------------------------------------------
@@ -44,28 +44,16 @@ SENSORS = {
         'points_per_second': 200000,
         'rotation_frequency': 20,
         # Bad Weather Simulation (Noise)
-        'atmosphere_attenuation_rate': 0.04, # Fog/Rain attenuation
-        'dropoff_general_rate': 0.45,
-        'dropoff_intensity_limit': 0.8,
-        'dropoff_zero_intensity': 0.4,
-        'noise_stddev': 0.02 # 2cm jitter
+        # 'atmosphere_attenuation_rate': 0.04, # Fog/Rain attenuation
+        # 'dropoff_general_rate': 0.45,
+        # 'dropoff_intensity_limit': 0.8,
+        # 'dropoff_zero_intensity': 0.4,
+        # 'noise_stddev': 0.02 # 2cm jitter
     },
     'camera_front': {
         'type': 'sensor.camera.rgb',
         'x': 2.0, 'y': 0.0, 'z': 1.5,
         'roll': 0.0, 'pitch': 0.0, 'yaw': 0.0,
-        'image_size_x': 640, 'image_size_y': 480, 'fov': 90
-    },
-    'camera_rear': {
-        'type': 'sensor.camera.rgb',
-        'x': -2.0, 'y': 0.0, 'z': 1.5,
-        'roll': 0.0, 'pitch': 0.0, 'yaw': 180.0,
-        'image_size_x': 640, 'image_size_y': 480, 'fov': 90
-    },
-    'camera_tps': {
-        'type': 'sensor.camera.rgb',
-        'x': -5.5, 'y': 0.0, 'z': 2.8,
-        'roll': 0.0, 'pitch': -15.0, 'yaw': 0.0,
         'image_size_x': 640, 'image_size_y': 480, 'fov': 90
     },
     'gnss': {

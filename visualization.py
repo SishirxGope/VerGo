@@ -23,6 +23,7 @@ class SensorVisualizer:
         pygame.display.set_caption("Sensor Fusion Debugger: LiDAR + Radar")
         self.font = pygame.font.SysFont('Arial', 14)
         self.clock = pygame.time.Clock()
+        self.user_overtake_requested = False
 
     def render(self, data):
         """
@@ -30,9 +31,13 @@ class SensorVisualizer:
         data: Dictionary containing sensor data buffers.
         """
         # Event Handling
+        self.user_overtake_requested = False
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 return False
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE or event.key == pygame.K_o:
+                    self.user_overtake_requested = True
         
         self.display.fill(self.COLOR_BG)
         
@@ -61,6 +66,7 @@ class SensorVisualizer:
              vel = data['ego_velocity']
              speed = 3.6 * math.sqrt(vel.x**2 + vel.y**2)
         self._draw_text(f"Ego Speed: {speed:.1f} km/h", (10, 10))
+        self._draw_text("Press SPACE to Overtake", (10, 30))
         
         pygame.display.flip()
         self.clock.tick(60)

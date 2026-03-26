@@ -102,7 +102,8 @@ def main():
             state, target_speed = behavior_planner.plan(
                 ego_transform, 
                 ego_speed, 
-                data['nearby_vehicles']
+                data['nearby_vehicles'],
+                user_overtake_requested=visualizer.user_overtake_requested
             )
             
             # 2. Motion (Trajectory)

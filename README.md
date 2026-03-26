@@ -30,6 +30,7 @@ This is a **complete autonomous driving system** designed for the CARLA simulato
 
 - ✅ **Full Autonomous Navigation**: Global route planning from any point A to point B
 - ✅ **Intelligent Overtaking**: Lane-change-based overtaking with safety validation
+- ✅ **Manual Overtake Control**: User-triggered guaranteed overtaking via 'O' or Space key
 - ✅ **Traffic Light Compliance**: Red/Yellow light detection and stopping behavior
 - ✅ **Multi-Vehicle Interaction**: Convoy following and multi-lane scenarios
 - ✅ **Sensor Fusion**: LiDAR, Radar, Camera, GNSS, and IMU integration
@@ -70,7 +71,7 @@ The system follows a **hierarchical autonomy architecture**:
 │  │  (High-level     │      │  (Trajectory        │         │
 │  │   Decisions)     │      │   Generation)       │         │
 │  └──────────────────┘      └─────────────────────┘         │
-│  • State Machine Logic     • Path Smoothing                │
+│  • State Machine Logic     • B-Spline Path Smoothing       │
 │  • Overtaking Strategy     • Route Following               │
 │  • Speed Regulation        • Lane-change Trajectories      │
 └────────────────────────────────────────────────────────────┘
@@ -396,7 +397,7 @@ global_route: List[Waypoint] # A-to-B navigation path
 
 **Lead Vehicle Detection** (`_get_lead_vehicle`):
 
-Two-stage detection system:
+Two-stage detection system with persistent spatial tracking to resolve ephemeral IDs:
 
 **Stage 1: Route-Aware Search** (Primary)
 ```python
@@ -445,16 +446,36 @@ For target_lane:
    
    IF state == CHANGE_LANE_L/R or OVERTAKE:
      • Find neighbor of route waypoint matching target_lane_id
-     • Add neighbor waypoint (creates smooth lateral shift)
-     • Controller naturally interpolates between them
+     • Compute B-spline Catmull-Rom based lateral offset
+     • Blend trajectory to smoothly shift to the target lane
    
 4. Return list of carla.Transform objects
 ```
+### Kinematic Trajectory Generation via Catmull-Rom Splines
 
-**Why This Works**:
-- The Pure Pursuit controller automatically smooths between waypoints
-- Gradual waypoint transition creates natural lane-change curves
-- Route anchoring prevents wandering or divergence
+To ensure jerk-minimized, smooth lateral transitions during lane changes and overtaking maneuvers, the `MotionPlanner` employs a specialized **Catmull-Rom B-spline formulation**. Unlike linear interpolation which induces infinite lateral jerk at the boundary points, the spline mathematically guarantees $C^1$ continuity (continuous curvature) and deterministic control over the lateral offset profile.
+
+#### Mathematical Formulation
+
+The path generation algorithm anchors dynamically to the global route waypoints. Upon a state transition requiring lateral movement (e.g., `CRUISE` → `CHANGE_LANE_LEFT`), the system calculates the initial lateral offset vector $\vec{d}_0$ relative to the target lane's centerline.
+
+As the ego vehicle longitudinally progresses, the required remaining lateral offset $\vec{d}(s)$ at arc-length $s$ is computed via a normalized blending function $\Phi(\tau)$:
+
+$$ \vec{d}(s) = \vec{d}_0 \cdot \Phi(\tau) $$
+$$ \tau = \min\left(1.0, \frac{s}{L_{\text{blend}}}\right) $$
+
+where $L_{\text{blend}}$ is the characteristic blending horizon (nominally $30.0$ meters), and $\tau \in [0, 1]$ represents the normalized maneuver progress metric.
+
+The blending function $\Phi(\tau)$ is evaluated using a piece-wise Catmull-Rom parametric spline $\mathbf{P}(t)$. For computational efficiency within the 20 Hz simulation loop, the curve is pre-computed into a high-resolution look-up table (LUT). For any given curve segment bounded by primary spatial control points $\mathbf{p}_1$ and $\mathbf{p}_2$, with adjacent spatial support points $\mathbf{p}_0$ and $\mathbf{p}_3$, the interpolated spatial point is defined fundamentally as:
+
+$$ \mathbf{P}(t) = \frac{1}{2}\begin{bmatrix} 1 & t & t^2 & t^3 \end{bmatrix} \begin{bmatrix} 0 & 2 & 0 & 0 \\ -1 & 0 & 1 & 0 \\ 2 & -5 & 4 & -1 \\ -1 & 3 & -3 & 1 \end{bmatrix} \begin{bmatrix} \mathbf{p}_0 \\ \mathbf{p}_1 \\ \mathbf{p}_2 \\ \mathbf{p}_3 \end{bmatrix} $$
+
+where $t \in [0, 1]$ localizes the segment interval. The algorithm dynamically maps the global progress $\tau$ to the closest $t$-interval and extracts the corresponding lateral multiplier. This robustly enforces a smooth, monotonic convergence of the trajectory sequence onto the target lane centerline.
+
+#### Systemic Advantages
+- **Kinematic Feasibility**: The resulting waypoint topology naturally integrates with the downstream Pure Pursuit geometric controller, minimizing high-frequency steering chatter.
+- **Predictive Smoothness**: Structurally eliminates the severe lateral oscillations common in reactive PID routing under discrete lane-assignment steps.
+- **Route Fidelity**: Ensures the ego vehicle remains strongly tethered to the global route structure under all dynamic re-planning circumstances.
 
 ---
 
@@ -526,7 +547,7 @@ ELSE:
 
 ### 6. `visualization.py` - Real-time Debugging
 
-**Purpose**: Pygame-based multi-sensor fusion visualization.
+**Purpose**: Pygame-based multi-sensor fusion visualization & User Input for Manual Overtake.
 
 #### Class: SensorVisualizer
 
@@ -930,6 +951,7 @@ Frame: 0 | State: CRUISE | Speed: 0.0 km/h | Target: 30.0 km/h | Steer: 0.00
 - Right half: Bird's eye view with LiDAR/Radar visualization
 
 **Controls**:
+- `SPACE` or `O`: Trigger manual overtake maneuver
 - Close pygame window or Ctrl+C to stop
 
 ---
@@ -1128,12 +1150,14 @@ PURE_PURSUIT_LOOKAHEAD = 6.0  # meters (↑ for smoother, ↓ for tighter turns)
 - ✅ Full autonomous navigation (A-to-B)
 - ✅ Global route planning (greedy A*)
 - ✅ Behavior state machine (9 states)
-- ✅ Lane-change-based overtaking
+- ✅ Autonomous lane-change-based overtaking
+- ✅ **Manual Overtake Control** (User-triggered via UI)
+- ✅ **B-spline trajectory blending** for smooth lane changes
 - ✅ Traffic light compliance (Red/Yellow/Green)
-- ✅ Car following with adaptive gap control
+- ✅ Car following with adaptive gap control & spatial tracking
 - ✅ Emergency braking (TTC-based)
 - ✅ Multi-sensor fusion (LiDAR, Radar, Camera, GNSS, IMU)
-- ✅ Real-time visualization (pygame)
+- ✅ Real-time visualization & User Input (pygame)
 - ✅ India driving rules (left-lane, right-overtake)
 - ✅ PID longitudinal control
 - ✅ Pure Pursuit lateral control
@@ -1306,6 +1330,12 @@ This is a research/educational project. Contributions welcome:
 ---
 
 ## 📝 Changelog
+
+### Version 16.8 (March 26, 2026)
+- ✅ Added Manual Overtake control via 'O' or Space key
+- ✅ Implemented B-spline path blending for smoother lane changes
+- ✅ Resolved ephemeral ID tracking with robust spatial tracking
+- ✅ Optimized simulation performance and stuck detection logic
 
 ### Version 16.7 (January 26, 2026)
 - ✅ Full autonomous navigation with global routing

@@ -26,12 +26,27 @@ class BehaviorPlanner:
         self.lane_change_completed = False
         self.global_route = [] # List of (waypoint, road_option)
         self.overtake_victim_id = None # ID of the vehicle we are currently passing
+        self.overtake_victim_loc = None # Last known location of the victim
+        self.following_time = 0.0 # Time spent following a vehicle at matched speed
 
-    def plan(self, ego_transform, ego_speed, nearby_vehicles):
+    def plan(self, ego_transform, ego_speed, nearby_vehicles, user_overtake_requested=False):
         """
         Determines the behavior state and target speed.
         """
         # 0. Observation
+        # Track Victim spatially to resolve ephemeral ID issues
+        skip_states = [BehaviorState.CHANGE_LANE_LEFT, BehaviorState.CHANGE_LANE_RIGHT, BehaviorState.OVERTAKE, BehaviorState.PREPARE_OVERTAKE]
+        victim_vehicle = None
+        if self.state in skip_states and getattr(self, 'overtake_victim_loc', None):
+             min_d = float('inf')
+             for v in nearby_vehicles:
+                 d = v.get_location().distance(self.overtake_victim_loc)
+                 if d < 10.0 and d < min_d:
+                     min_d = d
+                     victim_vehicle = v
+             if victim_vehicle:
+                 self.overtake_victim_loc = victim_vehicle.get_location()
+                 
         closest_obs_dist, lead_vehicle = self._get_lead_vehicle(ego_transform, nearby_vehicles)
         ttc = float('inf')
         if ego_speed > 0.1:
@@ -67,7 +82,7 @@ class BehaviorPlanner:
         # Skip if we are already in a controlled stop state
         # Skip victim masking
         skip_states = [BehaviorState.CHANGE_LANE_LEFT, BehaviorState.CHANGE_LANE_RIGHT, BehaviorState.OVERTAKE]
-        is_victim = lead_vehicle and (lead_vehicle.id == self.overtake_victim_id)
+        is_victim = lead_vehicle and victim_vehicle and (lead_vehicle.get_location().distance(victim_vehicle.get_location()) < 2.0)
         
         if ttc < config.EMERGENCY_BRAKE_TTC and self.state not in [BehaviorState.STOP_FOR_TL]:
              if not (self.state in skip_states and is_victim):
@@ -79,31 +94,43 @@ class BehaviorPlanner:
         
         # B. CRUISE / FOLLOW Logic
         if self.state in [BehaviorState.CRUISE, BehaviorState.FOLLOW]:
-            # Overtake Trigger Logic
-            if closest_obs_dist < config.SAFE_FOLLOW_DISTANCE:
+            
+            # Manual Overtake Trigger (User controls) - 100% Guaranteed Overtake
+            if user_overtake_requested:
+                left_lane = self.interface.get_visual_left_lane(current_wp)
+                right_lane = self.interface.get_visual_right_lane(current_wp)
+                
+                # Force lane change, skipping PREPARE_OVERTAKE and _is_lane_free
+                if left_lane:
+                    self.state = BehaviorState.CHANGE_LANE_LEFT
+                    self.target_lane_wp = left_lane
+                    self.overtake_victim_id = lead_vehicle.id if lead_vehicle else None
+                    self.overtake_victim_loc = lead_vehicle.get_location() if lead_vehicle else None
+                    self.lane_change_completed = False
+                elif right_lane:
+                    self.state = BehaviorState.CHANGE_LANE_RIGHT
+                    self.target_lane_wp = right_lane
+                    self.overtake_victim_id = lead_vehicle.id if lead_vehicle else None
+                    self.overtake_victim_loc = lead_vehicle.get_location() if lead_vehicle else None
+                    self.lane_change_completed = False
+                    
+            # Autonomous Overtake Trigger Logic
+            elif closest_obs_dist < config.SAFE_FOLLOW_DISTANCE:
                 self.state = BehaviorState.FOLLOW
                 
-                # If speed is slow, consider overtaking
-                if ego_speed < (config.TARGET_SPEED_MPS * 0.8):
-                    # Check lanes
-                    left_lane = self.interface.get_visual_left_lane(current_wp)
-                    left_free = left_lane and self._is_lane_free(left_lane, ego_transform, nearby_vehicles)
-                    
-                    if left_free:
-                        self.state = BehaviorState.PREPARE_OVERTAKE
-                        self.target_lane_wp = left_lane
-                        self.overtake_victim_id = lead_vehicle.id
+                # Check if we are matching speed with the lead vehicle
+                if lead_vehicle:
+                    lead_vel = lead_vehicle.get_velocity()
+                    lead_speed = math.sqrt(lead_vel.x**2 + lead_vel.y**2)
+                    if abs(ego_speed - lead_speed) < 1.5: # 1.5 m/s tolerance
+                        self.following_time += getattr(config, 'FIXED_DELTA_SECONDS', 0.05)
                     else:
-                        # Try right
-                        right_lane = self.interface.get_visual_right_lane(current_wp)
-                        right_free = right_lane and self._is_lane_free(right_lane, ego_transform, nearby_vehicles)
-                        
-                        if right_free:
-                             self.state = BehaviorState.PREPARE_OVERTAKE
-                             self.target_lane_wp = right_lane
-                             self.overtake_victim_id = lead_vehicle.id
+                        self.following_time = 0.0
+                else:
+                    self.following_time = 0.0
             else:
                 self.state = BehaviorState.CRUISE
+                self.following_time = 0.0
                 
         # C. PREPARE_OVERTAKE
         elif self.state == BehaviorState.PREPARE_OVERTAKE:
@@ -120,6 +147,7 @@ class BehaviorPlanner:
             else:
                 self.state = BehaviorState.FOLLOW # Abort
                 self.overtake_victim_id = None
+                self.overtake_victim_loc = None
 
         # D. LANE CHANGES
         elif self.state in [BehaviorState.CHANGE_LANE_RIGHT, BehaviorState.CHANGE_LANE_LEFT]:
@@ -132,9 +160,9 @@ class BehaviorPlanner:
         elif self.state == BehaviorState.OVERTAKE:
             # We must stay in this lane until the victim is well behind us
             victim_far_behind = True
-            if self.overtake_victim_id:
+            if self.overtake_victim_loc:
                 for vehicle in nearby_vehicles:
-                    if vehicle.id == self.overtake_victim_id:
+                    if vehicle.get_location().distance(self.overtake_victim_loc) < 2.0:
                         v_loc = vehicle.get_location()
                         ego_loc = ego_transform.location
                         # Check longitudinal distance (Ego in front of Victim)
@@ -149,6 +177,7 @@ class BehaviorPlanner:
                 print("DEBUG: Overtake stabilization complete. Resuming Cruise.")
                 self.state = BehaviorState.CRUISE
                 self.overtake_victim_id = None
+                self.overtake_victim_loc = None
                   
         # 3. Compute Target Speed
         if self.state == BehaviorState.FOLLOW:
@@ -214,8 +243,9 @@ class BehaviorPlanner:
                 for vehicle in nearby_vehicles:
                     # Skip the vehicle we are intentionally passing
                     skip_states = [BehaviorState.CHANGE_LANE_LEFT, BehaviorState.CHANGE_LANE_RIGHT, BehaviorState.OVERTAKE]
-                    if self.state in skip_states and vehicle.id == self.overtake_victim_id:
-                        continue
+                    if self.state in skip_states and getattr(self, 'overtake_victim_loc', None):
+                        if vehicle.get_location().distance(self.overtake_victim_loc) < 2.0:
+                            continue
 
                     v_loc = vehicle.get_location()
                     
@@ -244,8 +274,9 @@ class BehaviorPlanner:
             for vehicle in nearby_vehicles:
                 # Skip the vehicle we are intentionally passing
                 skip_states = [BehaviorState.CHANGE_LANE_LEFT, BehaviorState.CHANGE_LANE_RIGHT, BehaviorState.OVERTAKE]
-                if self.state in skip_states and vehicle.id == self.overtake_victim_id:
-                    continue
+                if self.state in skip_states and getattr(self, 'overtake_victim_loc', None):
+                    if vehicle.get_location().distance(self.overtake_victim_loc) < 2.0:
+                        continue
 
                 dx = vehicle.get_location().x - ego_loc.x
                 dy = vehicle.get_location().y - ego_loc.y
@@ -292,6 +323,39 @@ class BehaviorPlanner:
 class MotionPlanner:
     def __init__(self, am_map):
         self.map = am_map
+        self.spline_lut = self._build_spline_curve()
+        self.current_state = None
+        self.lc_start_loc = None
+        self.lc_initial_offset = None
+        
+    def _build_spline_curve(self):
+        # Implements the Catmull-Rom spline control points from the bspline script
+        # Control points: [x_progress, y_lateral_shift]
+        pts = [[-0.2, -0.05], [0.0, 0.0], [0.15, 0.03], [0.42, 0.48], [0.80, 0.97], [1.0, 1.0], [1.2, 1.05]]
+        curve = []
+        for i in range(1, len(pts) - 2):
+            p0, p1, p2, p3 = pts[i-1], pts[i], pts[i+1], pts[i+2]
+            for j in range(20):
+                t = j / 19.0
+                t2 = t*t; t3 = t2*t
+                x = 0.5 * (2*p1[0] + (-p0[0]+p2[0])*t + (2*p0[0]-5*p1[0]+4*p2[0]-p3[0])*t2 + (-p0[0]+3*p1[0]-3*p2[0]+p3[0])*t3)
+                y = 0.5 * (2*p1[1] + (-p0[1]+p2[1])*t + (2*p0[1]-5*p1[1]+4*p2[1]-p3[1])*t2 + (-p0[1]+3*p1[1]-3*p2[1]+p3[1])*t3)
+                curve.append((x, y))
+        return curve
+
+    def _get_spline_ratio(self, progress):
+        if progress <= 0: return 1.0
+        if progress >= 1.0: return 0.0
+        
+        # Interpolate from our Catmull-Rom Look-up Table
+        for i in range(len(self.spline_lut)-1):
+            if self.spline_lut[i][0] <= progress <= self.spline_lut[i+1][0]:
+                y1 = self.spline_lut[i][1]
+                y2 = self.spline_lut[i+1][1]
+                t = (progress - self.spline_lut[i][0]) / max(0.0001, (self.spline_lut[i+1][0] - self.spline_lut[i][0]))
+                y = y1 + t*(y2 - y1)
+                return 1.0 - y # Invert because 1.0 means 100% shifted, we want 0.0 offset remaining
+        return 0.0
     
     def generate_path(self, ego_transform, behavior_state, target_lane_wp=None, global_route=None, horizon=50):
         """
@@ -313,36 +377,57 @@ class MotionPlanner:
                 start_idx = i
             if d > 15.0 and min_dist < 15.0: break
 
+        # State transition detection to anchor the S-Curve properly
+        if behavior_state != self.current_state:
+            self.current_state = behavior_state
+            self.lc_start_loc = ego_loc
+            self.lc_initial_offset = None
+            
         # 2. Project path ahead from route
         accum_dist = 0
+        blend_dist = 30.0 # meters for smooth path correction
+        
+        # Calculate how far ego has already progressed into the maneuver
+        ego_dist = ego_loc.distance(self.lc_start_loc) if self.lc_start_loc else 0.0
+        
         for i in range(start_idx, len(global_route)-1):
             p_wp = global_route[i][0]
             accum_dist += 2.0 
             if accum_dist > horizon: break
             
+            chosen_wp = p_wp
+            
             # 3. Determine Lateral Shift based on BehaviorState
-            if behavior_state in [BehaviorState.CRUISE, BehaviorState.FOLLOW]:
-                waypoints.append(p_wp.transform)
-                
-            elif behavior_state in [BehaviorState.CHANGE_LANE_RIGHT, BehaviorState.CHANGE_LANE_LEFT, BehaviorState.OVERTAKE]:
-                if not target_lane_wp:
-                    waypoints.append(p_wp.transform)
-                    continue
-                
-                target_id = target_lane_wp.lane_id
-                
-                # Find the neighbor of the ROUTE waypoint
-                shift_wp = None
-                r = p_wp.get_right_lane()
-                l = p_wp.get_left_lane()
-                
-                if r and r.lane_id == target_id:
-                    shift_wp = r
-                elif l and l.lane_id == target_id:
-                    shift_wp = l
-                else:
-                    shift_wp = p_wp # Fallback
-                
-                waypoints.append(shift_wp.transform)
+            if behavior_state in [BehaviorState.CHANGE_LANE_RIGHT, BehaviorState.CHANGE_LANE_LEFT, BehaviorState.OVERTAKE]:
+                if target_lane_wp:
+                    target_id = target_lane_wp.lane_id
+                    r = p_wp.get_right_lane()
+                    l = p_wp.get_left_lane()
+                    
+                    if r and r.lane_id == target_id:
+                        chosen_wp = r
+                    elif l and l.lane_id == target_id:
+                        chosen_wp = l
+            
+            # 4. Smooth Trajectory Blending (B-Spline / Catmull-Rom integration)
+            # Anchor the initial offset ONCE per state transition
+            if self.lc_initial_offset is None:
+                vec = ego_loc - chosen_wp.transform.location
+                fwd = chosen_wp.transform.get_forward_vector()
+                dot = vec.x * fwd.x + vec.y * fwd.y + vec.z * fwd.z
+                self.lc_initial_offset = carla.Location(vec.x - fwd.x * dot, vec.y - fwd.y * dot, vec.z - fwd.z * dot)
+            
+            # We map the waypoint's absolute distance from the maneuver start to the spline lookup
+            wp_dist_from_start = ego_dist + accum_dist
+            progress = min(1.0, wp_dist_from_start / blend_dist)
+            smooth_ratio = self._get_spline_ratio(progress)
+            
+            loc = chosen_wp.transform.location
+            new_x = loc.x + self.lc_initial_offset.x * smooth_ratio
+            new_y = loc.y + self.lc_initial_offset.y * smooth_ratio
+            new_z = loc.z + self.lc_initial_offset.z * smooth_ratio
+            
+            new_loc = carla.Location(new_x, new_y, new_z)
+            waypoints.append(carla.Transform(new_loc, chosen_wp.transform.rotation))
         
         return waypoints

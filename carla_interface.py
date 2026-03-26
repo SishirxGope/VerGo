@@ -181,6 +181,17 @@ class CarlaInterface:
         else:
              self.world.set_weather(carla.WeatherParameters.ClearNoon)
              print("Weather set to: Clear Noon")
+             
+        self.set_all_traffic_lights_green()
+
+    def set_all_traffic_lights_green(self):
+        """Sets all traffic lights in the simulation to Green and freezes them for testing."""
+        traffic_lights = self.world.get_actors().filter('*traffic_light*')
+        for tl in traffic_lights:
+            tl.set_state(carla.TrafficLightState.Green)
+            tl.set_green_time(99999.0)
+            tl.freeze(True)
+        print(f"Set {len(traffic_lights)} traffic lights to permanent Green.")
 
     def spawn_ego_vehicle(self, spawn_point_index=0):
         """Spawns the ego vehicle at a specified spawn point, preferring outer (left) lanes."""
